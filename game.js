@@ -81,9 +81,14 @@ let reloadBtnBounds = null; // { x, y, r } for mobile reload button
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+let uiScale = 1;
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+  uiScale = Math.min(canvas.width / 900, canvas.height / 600, 1.4);
+}
+function scaledFont(size, bold) {
+  return `${bold ? 'bold ' : ''}${Math.round(size * uiScale)}px monospace`;
 }
 resize();
 window.addEventListener('resize', resize);
@@ -541,22 +546,23 @@ function drawCrosshair(x, y) {
 }
 
 function drawHUD() {
-  const pad = 20;
+  const s = uiScale;
+  const pad = Math.round(20 * s);
   ctx.save();
 
   // Wave
-  ctx.font = 'bold 22px monospace';
+  ctx.font = scaledFont(22, true);
   ctx.fillStyle = '#aef';
   ctx.shadowColor = '#0af';
   ctx.shadowBlur = 8;
-  ctx.fillText(`WAVE ${state.wave + 1} / ${WAVE_DATA.length}`, pad, pad + 22);
+  ctx.fillText(`WAVE ${state.wave + 1} / ${WAVE_DATA.length}`, pad, pad + 22 * s);
 
   // Health bar
   const hpFrac = Math.max(0, state.health / state.maxHealth);
-  const hpBarW = 180;
-  const hpBarH = 12;
+  const hpBarW = Math.round(180 * s);
+  const hpBarH = Math.round(12 * s);
   const hpX = pad;
-  const hpY = pad + 34;
+  const hpY = pad + Math.round(34 * s);
   const hpColor = hpFrac > 0.5 ? '#22dd22' : hpFrac > 0.25 ? '#ffcc00' : '#ff2222';
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#222';
@@ -569,40 +575,40 @@ function drawHUD() {
   ctx.lineWidth = 1;
   ctx.shadowBlur = 0;
   ctx.strokeRect(hpX, hpY, hpBarW, hpBarH);
-  ctx.font = '11px monospace';
+  ctx.font = scaledFont(11, false);
   ctx.fillStyle = '#aaa';
   ctx.textAlign = 'left';
-  ctx.fillText(`HEALTH ${Math.ceil(state.health)}`, hpX + hpBarW + 8, hpY + 10);
+  ctx.fillText(`HEALTH ${Math.ceil(state.health)}`, hpX + hpBarW + 8, hpY + hpBarH * 0.8);
 
   // Score
   const scoreText = `SCORE: ${state.score.toLocaleString()}`;
   ctx.textAlign = 'right';
-  ctx.font = 'bold 22px monospace';
+  ctx.font = scaledFont(22, true);
   ctx.fillStyle = '#aef';
   ctx.shadowColor = '#0af';
   ctx.shadowBlur = 8;
-  ctx.fillText(scoreText, canvas.width - pad, pad + 22);
+  ctx.fillText(scoreText, canvas.width - pad, pad + 22 * s);
 
   // Combo
   if (state.comboMultiplier > 1) {
-    ctx.font = 'bold 18px monospace';
+    ctx.font = scaledFont(18, true);
     ctx.fillStyle = '#ff0';
     ctx.shadowColor = '#f80';
-    ctx.fillText(`×${state.comboMultiplier} COMBO!`, canvas.width - pad, pad + 48);
+    ctx.fillText(`×${state.comboMultiplier} COMBO!`, canvas.width - pad, pad + 48 * s);
   }
 
   // Bullets
   ctx.textAlign = 'left';
-  const bulletY = canvas.height - pad - 10;
+  const pipR = Math.round(8 * s);
+  const pipGap = Math.round(5 * s);
+  const bulletY = canvas.height - pad - pipR - 2;
 
-  ctx.font = 'bold 22px monospace';
+  ctx.font = scaledFont(22, true);
   ctx.fillStyle = '#aef';
   ctx.shadowColor = '#0af';
   ctx.shadowBlur = 8;
-  ctx.fillText('ROUNDS', pad, bulletY - 22);
+  ctx.fillText('ROUNDS', pad, bulletY - pipR - Math.round(10 * s));
   ctx.shadowBlur = 0;
-  const pipR = 8;
-  const pipGap = 5;
 
   for (let i = 0; i < MAX_BULLETS; i++) {
     const px = pad + i * (pipR * 2 + pipGap);
@@ -624,37 +630,38 @@ function drawHUD() {
 
   // Reload arc (desktop only — mobile has its own reload button)
   if (state.reloading && !isMobile) {
-    const arcX = pad + MAX_BULLETS * (pipR * 2 + pipGap) + 20;
+    const arcX = pad + MAX_BULLETS * (pipR * 2 + pipGap) + Math.round(20 * s);
     const arcY = bulletY;
     ctx.beginPath();
-    ctx.arc(arcX, arcY, 14, -Math.PI / 2, -Math.PI / 2 + state.reloadProgress * Math.PI * 2);
+    ctx.arc(arcX, arcY, Math.round(14 * s), -Math.PI / 2, -Math.PI / 2 + state.reloadProgress * Math.PI * 2);
     ctx.strokeStyle = '#0f0';
     ctx.lineWidth = 3;
     ctx.shadowColor = '#0f0';
     ctx.shadowBlur = 8;
     ctx.stroke();
 
-    ctx.font = '11px monospace';
+    ctx.font = scaledFont(11, false);
     ctx.fillStyle = '#0f0';
     ctx.shadowBlur = 0;
     ctx.textAlign = 'left';
-    ctx.fillText('RELOAD', arcX + 20, arcY + 5);
+    ctx.fillText('RELOAD', arcX + Math.round(20 * s), arcY + 5);
   }
 
   // Reload warning flash
   if (state.reloadWarningFlash > 0) {
     const alpha = Math.min(1, state.reloadWarningFlash / 400);
-    ctx.font = 'bold 28px monospace';
+    ctx.font = scaledFont(28, true);
     ctx.fillStyle = `rgba(255,50,50,${alpha})`;
     ctx.shadowColor = '#f00';
     ctx.shadowBlur = 16;
     ctx.textAlign = 'center';
-    ctx.fillText('RELOAD!', canvas.width / 2, canvas.height - 80);
+    ctx.fillText('RELOAD!', canvas.width / 2, canvas.height - Math.round(80 * s));
   }
 
   // Mobile reload button
   if (isMobile) {
-    const btnR = 36;
+    const btnR = Math.round(36 * s);
+    const iconR = Math.round(16 * s);
     const btnX = canvas.width - pad - btnR;
     const btnY = canvas.height - pad - btnR;
     reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 10 }; // +10 for easier tap
@@ -670,7 +677,7 @@ function drawHUD() {
 
     // Circular arrow icon
     ctx.beginPath();
-    ctx.arc(btnX, btnY, 16, -Math.PI * 0.8, Math.PI * 0.5);
+    ctx.arc(btnX, btnY, iconR, -Math.PI * 0.8, Math.PI * 0.5);
     ctx.strokeStyle = state.reloading ? '#0f0' : '#aaa';
     ctx.lineWidth = 3;
     ctx.shadowColor = state.reloading ? '#0f0' : 'transparent';
@@ -679,12 +686,13 @@ function drawHUD() {
 
     // Arrowhead
     const tipAngle = Math.PI * 0.5;
-    const tipX = btnX + Math.cos(tipAngle) * 16;
-    const tipY = btnY + Math.sin(tipAngle) * 16;
+    const tipX = btnX + Math.cos(tipAngle) * iconR;
+    const tipY = btnY + Math.sin(tipAngle) * iconR;
+    const arr = Math.round(6 * s);
     ctx.beginPath();
-    ctx.moveTo(tipX - 6, tipY - 5);
+    ctx.moveTo(tipX - arr, tipY - arr + 1);
     ctx.lineTo(tipX, tipY);
-    ctx.lineTo(tipX + 6, tipY - 5);
+    ctx.lineTo(tipX + arr, tipY - arr + 1);
     ctx.strokeStyle = state.reloading ? '#0f0' : '#aaa';
     ctx.lineWidth = 3;
     ctx.stroke();
@@ -732,6 +740,7 @@ function drawShot() {
 }
 
 function drawScreen(title, color) {
+  const s = uiScale;
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
   const accuracy = state.shotsFired > 0
@@ -743,19 +752,19 @@ function drawScreen(title, color) {
   ctx.textAlign = 'center';
 
   // Title
-  ctx.font = 'bold 72px monospace';
+  ctx.font = scaledFont(72, true);
   ctx.fillStyle = color;
   ctx.shadowColor = color;
   ctx.shadowBlur = 30;
-  ctx.fillText(title, cx, cy - 130);
+  ctx.fillText(title, cx, cy - 130 * s);
 
   // Divider
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(cx - 220, cy - 100);
-  ctx.lineTo(cx + 220, cy - 100);
+  ctx.moveTo(cx - 220 * s, cy - 100 * s);
+  ctx.lineTo(cx + 220 * s, cy - 100 * s);
   ctx.stroke();
 
   // Combat stats
@@ -768,32 +777,32 @@ function drawScreen(title, color) {
   ];
 
   ctx.textAlign = 'left';
-  const colX = cx - 200;
-  const valX = cx + 80;
-  let rowY = cy - 75;
+  const colX = cx - 200 * s;
+  const valX = cx + 80 * s;
+  let rowY = cy - 75 * s;
   for (const [label, val] of stats) {
-    ctx.font = 'bold 18px monospace';
+    ctx.font = scaledFont(18, true);
     ctx.fillStyle = '#aef';
     ctx.shadowColor = '#0af';
     ctx.shadowBlur = 8;
     ctx.fillText(label, colX, rowY);
 
-    ctx.font = '18px monospace';
+    ctx.font = scaledFont(18, false);
     ctx.fillStyle = '#fff';
     ctx.shadowBlur = 0;
     ctx.fillText(val, valX, rowY);
-    rowY += 28;
+    rowY += 28 * s;
   }
 
   // Score breakdown divider
-  rowY += 8;
+  rowY += 8 * s;
   ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(colX, rowY);
-  ctx.lineTo(valX + 120, rowY);
+  ctx.lineTo(valX + 120 * s, rowY);
   ctx.stroke();
-  rowY += 22;
+  rowY += 22 * s;
 
   // Score breakdown
   const breakdown = [
@@ -803,17 +812,17 @@ function drawScreen(title, color) {
   ];
 
   for (const [label, val] of breakdown) {
-    ctx.font = '16px monospace';
+    ctx.font = scaledFont(16, false);
     ctx.fillStyle = '#aaa';
     ctx.shadowBlur = 0;
     ctx.fillText(label, colX, rowY);
     ctx.fillText(val, valX, rowY);
-    rowY += 24;
+    rowY += 24 * s;
   }
 
   // Total
-  rowY += 4;
-  ctx.font = 'bold 22px monospace';
+  rowY += 4 * s;
+  ctx.font = scaledFont(22, true);
   ctx.fillStyle = '#ff0';
   ctx.shadowColor = '#f80';
   ctx.shadowBlur = 8;
@@ -823,14 +832,14 @@ function drawScreen(title, color) {
   // Play again
   ctx.textAlign = 'center';
   ctx.shadowBlur = 0;
-  rowY += 50;
-  ctx.font = 'bold 22px monospace';
+  rowY += 50 * s;
+  ctx.font = scaledFont(22, true);
   ctx.fillStyle = '#0f0';
   ctx.shadowColor = '#0f0';
   ctx.shadowBlur = 14;
   const btnText = '[ PLAY AGAIN ]';
   const btnW = ctx.measureText(btnText).width;
-  playAgainBounds = { x: cx - btnW / 2 - 10, y: rowY - 22, w: btnW + 20, h: 34 };
+  playAgainBounds = { x: cx - btnW / 2 - 10, y: rowY - 22 * s, w: btnW + 20, h: 34 * s };
   ctx.fillText(btnText, cx, rowY);
 
   ctx.restore();
@@ -842,19 +851,20 @@ function drawWaveTransition() {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center';
-  ctx.font = 'bold 56px monospace';
+  ctx.font = scaledFont(56, true);
   ctx.fillStyle = '#0af';
   ctx.shadowColor = '#0af';
   ctx.shadowBlur = 24;
   ctx.fillText(`WAVE ${state.wave + 1}`, canvas.width / 2, canvas.height / 2);
-  ctx.font = '22px monospace';
+  ctx.font = scaledFont(22, false);
   ctx.fillStyle = '#aef';
   ctx.shadowBlur = 8;
-  ctx.fillText('Get ready!', canvas.width / 2, canvas.height / 2 + 50);
+  ctx.fillText('Get ready!', canvas.width / 2, canvas.height / 2 + 50 * uiScale);
   ctx.restore();
 }
 
 function drawStartScreen() {
+  const s = uiScale;
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
 
@@ -864,40 +874,40 @@ function drawStartScreen() {
   ctx.textAlign = 'center';
 
   // Title
-  ctx.font = 'bold 76px monospace';
+  ctx.font = scaledFont(76, true);
   ctx.fillStyle = '#f60';
   ctx.shadowColor = '#f60';
   ctx.shadowBlur = 36;
-  ctx.fillText('SPIDER ATTACK', cx, cy - 170);
+  ctx.fillText('SPIDER ATTACK', cx, cy - 170 * s);
 
   // Tagline
-  ctx.font = '20px monospace';
+  ctx.font = scaledFont(20, false);
   ctx.fillStyle = '#f99';
   ctx.shadowBlur = 8;
-  ctx.fillText('Spiders are swarming from deep space. Survive 10 waves!', cx, cy - 120);
+  ctx.fillText('Spiders are swarming from deep space. Survive 10 waves!', cx, cy - 120 * s);
 
   // Divider
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(cx - 280, cy - 92);
-  ctx.lineTo(cx + 280, cy - 92);
+  ctx.moveTo(cx - 280 * s, cy - 92 * s);
+  ctx.lineTo(cx + 280 * s, cy - 92 * s);
   ctx.stroke();
 
   // Instructions header
-  ctx.font = 'bold 16px monospace';
+  ctx.font = scaledFont(16, true);
   ctx.fillStyle = '#aef';
-  ctx.fillText('HOW TO PLAY', cx, cy - 65);
+  ctx.fillText('HOW TO PLAY', cx, cy - 65 * s);
 
   // Instruction rows
   const rows = isMobile ? [
     ['AIM',    'Tap where spiders appear'],
     ['SHOOT',  'Tap to fire (10 bullets per clip)'],
     ['RELOAD', 'Tap the reload button to reload'],
-    ['HEALTH', 'Close spiders drain your health. If it hits 0 — game over!'],
-    ['SCORE',  'Smaller spiders = more points. Hit streaks = combo bonus'],
-    ['WIN',    'Destroy every spider across all 10 waves'],
+    ['HEALTH', 'Close spiders drain your health'],
+    ['SCORE',  'Smaller spiders = more points'],
+    ['WIN',    'Destroy all spiders across 10 waves'],
   ] : [
     ['AIM',    'Move your mouse — crosshair tracks your cursor'],
     ['SHOOT',  'Left-click to fire (10 bullets per clip)'],
@@ -908,30 +918,30 @@ function drawStartScreen() {
   ];
 
   ctx.textAlign = 'left';
-  const colX = cx - 260;
-  const valX = cx - 120;
-  let rowY = cy - 30;
+  const colX = cx - 260 * s;
+  const valX = cx - 120 * s;
+  let rowY = cy - 30 * s;
   for (const [label, desc] of rows) {
-    ctx.font = 'bold 14px monospace';
+    ctx.font = scaledFont(14, true);
     ctx.fillStyle = '#ff0';
     ctx.shadowColor = '#f80';
     ctx.shadowBlur = 4;
     ctx.fillText(label, colX, rowY);
 
-    ctx.font = '14px monospace';
+    ctx.font = scaledFont(14, false);
     ctx.fillStyle = '#ccc';
     ctx.shadowBlur = 0;
     ctx.fillText(desc, valX, rowY);
-    rowY += 26;
+    rowY += 26 * s;
   }
 
   // Start prompt
   ctx.textAlign = 'center';
-  ctx.font = 'bold 22px monospace';
+  ctx.font = scaledFont(22, true);
   ctx.fillStyle = '#0f0';
   ctx.shadowColor = '#0f0';
   ctx.shadowBlur = 14;
-  ctx.fillText(isMobile ? '[ TAP TO START ]' : '[ CLICK TO START ]', cx, cy + 145);
+  ctx.fillText(isMobile ? '[ TAP TO START ]' : '[ CLICK TO START ]', cx, cy + 145 * s);
 
   ctx.restore();
 }
