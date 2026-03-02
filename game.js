@@ -622,8 +622,8 @@ function drawHUD() {
     ctx.stroke();
   }
 
-  // Reload arc
-  if (state.reloading) {
+  // Reload arc (desktop only — mobile has its own reload button)
+  if (state.reloading && !isMobile) {
     const arcX = pad + MAX_BULLETS * (pipR * 2 + pipGap) + 20;
     const arcY = bulletY;
     ctx.beginPath();
