@@ -72,6 +72,21 @@ Points are awarded per kill based on spider size at the moment of death — smal
 - **Mobile support** with touch input, larger reload tap target, and readability-tuned overlays
 - **Pixel-art spider rendering** with animated legs and eye detail
 
+## Code Architecture
+
+The runtime is now split into focused modules so each system is easier to reason about and maintain.
+
+- **`game.js`**: Main orchestrator. Initializes modules, owns top-level state reference, runs the frame loop, and coordinates phase flow.
+- **`game-logic.js`**: Pure/shared gameplay functions and constants used by both runtime and tests.
+- **`game-audio.js`**: Web Audio setup and synthesized sound effects (`shoot`, `kill`, `reload`, `damage`).
+- **`game-stars.js`**: Starfield initialization, per-frame update, and drawing.
+- **`game-spider.js`**: Spider entity class (movement/progression + pixel-art rendering).
+- **`game-renderer.js`**: HUD and screen rendering (start/game-over/victory overlays, muzzle flash, crosshair, wave transition).
+- **`game-input.js`**: Desktop and mobile input event wiring with phase-aware behavior.
+- **`gameplay-systems.js`**: Core gameplay systems (shooting, combo updates, reload flow, wave spawning/progression).
+- **`game-state.js`**: Initial state factory (single source of truth for state shape/reset defaults).
+- **`game-viewport.js`**: DPR-aware canvas sizing and UI scale/view size helpers.
+
 ## Running the Game Locally
 
 This is a pure HTML5 canvas game with no build step required.
@@ -92,7 +107,7 @@ npm install
 npm test
 ```
 
-Tests use [Vitest](https://vitest.dev/) and cover the pure game logic extracted into `game-logic.js`:
+Tests use [Vitest](https://vitest.dev/) and currently cover the pure logic in `game-logic.js`:
 - Score calculation by spider radius (boundary values, tier ordering)
 - Combo multiplier thresholds
 - Hit detection (distance-based, diagonal, boundary edge cases)
@@ -103,11 +118,19 @@ Tests use [Vitest](https://vitest.dev/) and cover the pure game logic extracted 
 
 ```
 SpiderAttack/
-  index.html          Entry point — loads canvas and game module
-  style.css           Full-screen canvas styling, touch-action support
-  game.js             Game loop, rendering, input, audio, state management
-  game-logic.js       Exported pure functions and constants (shared by game + tests)
+  index.html             Entry point — loads canvas and runtime module
+  style.css              Full-screen canvas styling, touch-action support
+  game.js                Runtime orchestrator (module wiring + main loop)
+  game-logic.js          Pure shared constants/functions (runtime + tests)
+  game-audio.js          Audio context + synthesized SFX
+  game-stars.js          Starfield system (init/update/draw)
+  game-spider.js         Spider entity class and drawing
+  game-renderer.js       HUD/screen/VFX rendering layer
+  game-input.js          Desktop/mobile input wiring
+  gameplay-systems.js    Shooting/reload/wave/combo gameplay systems
+  game-state.js          Initial state factory
+  game-viewport.js       DPR-aware viewport/canvas sizing helpers
   tests/
     game-logic.test.js  28 tests covering scoring, combos, hit detection, wave data
-  package.json        npm scripts (test, test:watch)
+  package.json           npm scripts (test, test:watch)
 ```
