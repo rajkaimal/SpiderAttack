@@ -20,54 +20,38 @@ function sfxShoot() {
 function sfxKill() {
   const t = audioCtx.currentTime + 0.02;
 
-  // Short bright click so it cuts through on mobile speakers.
-  const click = audioCtx.createOscillator();
-  const clickGain = audioCtx.createGain();
-  click.type = 'square';
-  click.frequency.setValueAtTime(2200, t);
-  click.frequency.exponentialRampToValueAtTime(900, t + 0.025);
-  clickGain.gain.setValueAtTime(0.09, t);
-  clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
-  click.connect(clickGain).connect(audioCtx.destination);
-  click.start(t);
-  click.stop(t + 0.04);
+  // Low, short thud at conservative volume.
+  const thud = audioCtx.createOscillator();
+  const thudGain = audioCtx.createGain();
+  thud.type = 'sine';
+  thud.frequency.setValueAtTime(120, t);
+  thud.frequency.exponentialRampToValueAtTime(65, t + 0.1);
+  thudGain.gain.setValueAtTime(0.06, t);
+  thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  thud.connect(thudGain).connect(audioCtx.destination);
+  thud.start(t);
+  thud.stop(t + 0.12);
 
-  // Tiny low body underneath the click.
-  const body = audioCtx.createOscillator();
-  const bodyGain = audioCtx.createGain();
-  body.type = 'triangle';
-  body.frequency.setValueAtTime(180, t);
-  body.frequency.exponentialRampToValueAtTime(95, t + 0.055);
-  bodyGain.gain.setValueAtTime(0.05, t);
-  bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-  body.connect(bodyGain).connect(audioCtx.destination);
-  body.start(t);
-  body.stop(t + 0.07);
-
-  // Crunch texture in the 1-3 kHz range for audibility.
-  const bufLen = Math.floor(audioCtx.sampleRate * 0.06);
+  // Very subtle texture so it feels less synthetic.
+  const bufLen = Math.floor(audioCtx.sampleRate * 0.08);
   const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < bufLen; i++) {
-    const p = i / bufLen;
-    const env = Math.pow(1 - p, 3);
-    data[i] = (Math.random() * 2 - 1) * env;
+    const env = 1 - i / bufLen;
+    data[i] = (Math.random() * 2 - 1) * env * 0.25;
   }
 
-  const crunchNoise = audioCtx.createBufferSource();
-  const hp = audioCtx.createBiquadFilter();
-  const lp = audioCtx.createBiquadFilter();
-  const crunchGain = audioCtx.createGain();
-  crunchNoise.buffer = buf;
-  hp.type = 'highpass';
-  hp.frequency.setValueAtTime(900, t);
-  lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(3200, t);
-  crunchGain.gain.setValueAtTime(0.06, t);
-  crunchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
-  crunchNoise.connect(hp).connect(lp).connect(crunchGain).connect(audioCtx.destination);
-  crunchNoise.start(t);
-  crunchNoise.stop(t + 0.06);
+  const noise = audioCtx.createBufferSource();
+  const filter = audioCtx.createBiquadFilter();
+  const noiseGain = audioCtx.createGain();
+  noise.buffer = buf;
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(260, t);
+  noiseGain.gain.setValueAtTime(0.02, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  noise.connect(filter).connect(noiseGain).connect(audioCtx.destination);
+  noise.start(t);
+  noise.stop(t + 0.08);
 }
 
 function sfxReload() {
@@ -688,11 +672,11 @@ function drawHUD() {
 
   // Mobile reload button
   if (isMobile) {
-    const btnR = Math.round(42 * s);
-    const iconR = Math.round(18 * s);
+    const btnR = Math.round(50 * s);
+    const iconR = Math.round(21 * s);
     const btnX = viewWidth - pad - btnR;
     const btnY = viewHeight - pad - btnR;
-    reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 14 }; // extra tap forgiveness on mobile
+    reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 22 }; // extra tap forgiveness on mobile
 
     // Button background
     ctx.beginPath();
