@@ -80,39 +80,40 @@ describe('getComboMultiplier', () => {
 
 describe('hitTest', () => {
   it('returns true for a direct hit (same position)', () => {
-    expect(hitTest(100, 100, 100, 100, 40, 20)).toBe(true);
+    expect(hitTest(100, 100, 100, 100, 8, 20)).toBe(true);
   });
 
-  it('returns true when click is within hit radius', () => {
-    expect(hitTest(100, 100, 120, 100, 40, 20)).toBe(true); // 20px away, hitRadius=40
+  it('returns true when click is within effective radius', () => {
+    // effectiveRadius = 20*0.75 + 8 = 23
+    expect(hitTest(100, 100, 122, 100, 8, 20)).toBe(true);
   });
 
   it('returns false when click is outside both radii', () => {
-    expect(hitTest(0, 0, 200, 200, 40, 20)).toBe(false);
+    expect(hitTest(0, 0, 200, 200, 8, 20)).toBe(false);
   });
 
-  it('uses max of hitRadius and spiderRadius', () => {
-    // Spider at 55px away, hitRadius=40 but spiderRadius=60
-    expect(hitTest(100, 100, 155, 100, 40, 60)).toBe(true);
-    // Spider at 55px away, hitRadius=40 and spiderRadius=20 — both too small
-    expect(hitTest(100, 100, 155, 100, 40, 20)).toBe(false);
+  it('combines spider size and assist radius', () => {
+    // effectiveRadius = 60*0.75 + 8 = 53
+    expect(hitTest(100, 100, 152, 100, 8, 60)).toBe(true);
+    // effectiveRadius = 20*0.75 + 8 = 23
+    expect(hitTest(100, 100, 124, 100, 8, 20)).toBe(false);
   });
 
   it('returns true at exact boundary', () => {
-    // Distance = 40, hitRadius = 40 — should be a hit (<=)
-    expect(hitTest(0, 0, 40, 0, 40, 10)).toBe(true);
+    // effectiveRadius = 10*0.75 + 8 = 15.5 — should be a hit (<=)
+    expect(hitTest(0, 0, 15.5, 0, 8, 10)).toBe(true);
   });
 
   it('returns false just past boundary', () => {
-    // Distance = 41, hitRadius = 40
-    expect(hitTest(0, 0, 41, 0, 40, 10)).toBe(false);
+    // effectiveRadius = 10*0.75 + 8 = 15.5
+    expect(hitTest(0, 0, 15.6, 0, 8, 10)).toBe(false);
   });
 
   it('works with diagonal distances', () => {
-    // Distance = sqrt(30^2 + 40^2) = 50, hitRadius = 40 — miss
-    expect(hitTest(0, 0, 30, 40, 40, 10)).toBe(false);
-    // Same but with spiderRadius = 55 — hit
-    expect(hitTest(0, 0, 30, 40, 40, 55)).toBe(true);
+    // Distance = sqrt(10^2 + 20^2) ≈ 22.36, effectiveRadius = 10*0.75 + 8 = 15.5 — miss
+    expect(hitTest(0, 0, 10, 20, 8, 10)).toBe(false);
+    // Distance = 50, effectiveRadius = 60*0.75 + 8 = 53 — hit
+    expect(hitTest(0, 0, 30, 40, 8, 60)).toBe(true);
   });
 });
 

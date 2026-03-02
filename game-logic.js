@@ -36,5 +36,6 @@ export function hitTest(clickX, clickY, spiderX, spiderY, hitRadius, spiderRadiu
   const dx = spiderX - clickX;
   const dy = spiderY - clickY;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  return dist <= Math.max(hitRadius, spiderRadius);
+  const effectiveRadius = spiderRadius * 0.75 + hitRadius;
+  return dist <= effectiveRadius;
 }

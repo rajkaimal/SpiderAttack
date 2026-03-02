@@ -7,6 +7,8 @@ Spider Attack is a fast-paced, wave-based browser shooter where spiders pour in 
 - **Objective**: Destroy every spider across all 10 waves before your health reaches 0.
 - **Aiming**: Move your mouse (or tap on mobile); the neon crosshair tracks your cursor.
 - **Shoot**: **Left-click** (or **tap**) to fire. You have **10 bullets per clip**.
+- **Accuracy Rule**: Hit registration is centered on the spider body with only light aim assist. Random spray is much less effective.
+- **Miss Penalty**: Missing a shot applies a brief shot delay before the next shot can fire.
 - **Reload**: **Right-click** (or tap the **reload button** on mobile) to reload; it takes about **1 second**, during which a reload arc fills up.
 - **Health**:
   - Your health bar is shown in the top-left.
@@ -29,13 +31,13 @@ The game consists of 10 waves of increasing difficulty. Each wave spawns a set n
 Spiders spawn at the edges of the screen and move inward along a straight path toward the center. They start as tiny dots on the horizon and grow larger as they approach, matching the parallax depth of the starfield behind them. From wave 5 onward, spiders gain a sinusoidal weave to their path, making them harder to hit. Each spider is rendered as pixel art with a body, animated legs, eyes, and pupils that track toward the center.
 
 ### Damage
-Spiders deal damage in two ways. When a spider gets very close (past 65% of its path), it continuously gnaws at your health — the closer it gets, the faster the drain. If a spider reaches you completely (100% progress), it bites for a flat 10 damage and disappears. Your max health is 100, and the screen flashes red when you take damage.
+Spiders deal damage in two ways. When a spider gets very close (past 65% of its path), it continuously gnaws at your health — the closer it gets, the faster the drain. If a spider reaches you completely (100% progress), it bites for a heavy 16 damage and disappears. Your max health is 100, and the screen flashes red when you take damage.
 
 ### Ammo & Reload
 You have a 10-round clip shown as bullet pips in the bottom-left. Each shot uses one bullet. When empty, a "RELOAD!" warning flashes on screen. Reloading takes 1 second with a visual progress arc. You can reload at any time, even with bullets remaining — useful for topping off between waves.
 
 ### Scoring & Combos
-Points are awarded per kill based on spider size at the moment of death — smaller spiders are harder to hit and worth more (tiny: 150, small: 80, medium: 40, large: 15). Consecutive hits without a miss build your combo counter. At 3 hits you earn a 1.5x multiplier; at 5 hits it jumps to 2x. Missing a shot resets the combo to zero. Clearing a wave awards a bonus based on wave number. The end screen breaks down your total score into kill points, combo bonus, and wave bonus.
+Points are awarded per kill based on spider size at the moment of death — smaller spiders are harder to hit and worth more (tiny: 150, small: 80, medium: 40, large: 15). Consecutive hits without a miss build your combo counter. At 3 hits you earn a 1.5x multiplier; at 5 hits it jumps to 2x. Missing a shot resets the combo to zero and applies a short shot delay. Clearing a wave awards a bonus based on wave number. The end screen breaks down your total score into kill points, combo bonus, and wave bonus.
 
 ## Controls
 
@@ -55,7 +57,7 @@ Points are awarded per kill based on spider size at the moment of death — smal
 - **Combo system** with score multiplier for consecutive hits
 - **Sound effects** — synthesized with Web Audio API (no audio files needed):
   - Sharp snap for shooting
-  - Wet bass splat for spider kills (80ms delayed for clarity)
+  - Low-volume thud for spider kills
   - Mechanical click for reload
 - **Visual effects**:
   - Muzzle flash at crosshair on shot

@@ -73,7 +73,8 @@ function sfxReload() {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-const HIT_RADIUS = isMobile ? 55 : 40; // px — larger on mobile for finger taps
+const AIM_ASSIST = isMobile ? 14 : 8; // px — limited assist so random shots do not dominate
+const MISS_SHOT_COOLDOWN = 140; // ms penalty applied after a missed shot
 const STAR_COUNT = 150;
 let playAgainBounds = null; // { x, y, w, h } for click detection
 let reloadBtnBounds = null; // { x, y, r } for mobile reload button
@@ -97,6 +98,20 @@ function resize() {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   uiScale = Math.min(viewWidth / 960, viewHeight / 640, 1.3);
+}
+
+function sfxDamage() {
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(220, t);
+  osc.frequency.exponentialRampToValueAtTime(170, t + 0.06);
+  gain.gain.setValueAtTime(0.045, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.08);
 }
 function scaledFont(size, bold, minPx = 0) {
   const px = Math.max(minPx, Math.round(size * uiScale));
@@ -141,6 +156,8 @@ function initState() {
     deathEffects: [],
     mouseX: viewWidth / 2,
     mouseY: viewHeight / 2,
+    nextShotTime: 0,
+    lastDamageSfxTime: 0,
   };
 }
 
@@ -422,8 +439,10 @@ canvas.addEventListener('touchmove', e => {
 
 // ─── Shooting ─────────────────────────────────────────────────────────────────
 function shoot(mx, my) {
+  const now = performance.now();
   if (state.reloading) return;
   if (state.waveTransition) return;
+  if (now < state.nextShotTime) return;
 
   if (state.bullets <= 0) {
     state.reloadWarningFlash = 800;
@@ -442,7 +461,7 @@ function shoot(mx, my) {
   for (let i = state.spiders.length - 1; i >= 0; i--) {
     const sp = state.spiders[i];
     const pos = sp.screenPos;
-    if (hitTest(mx, my, pos.x, pos.y, HIT_RADIUS, sp.radius)) {
+    if (hitTest(mx, my, pos.x, pos.y, AIM_ASSIST, sp.radius)) {
       const base = scoreForRadius(sp.radius);
       const pts = Math.round(base * state.comboMultiplier);
       state.score += pts;
@@ -458,6 +477,9 @@ function shoot(mx, my) {
     }
   }
 
+  if (!hit) {
+    state.nextShotTime = now + MISS_SHOT_COOLDOWN;
+  }
   updateCombo(hit);
 }
 
@@ -929,15 +951,17 @@ function drawStartScreen() {
   const rows = isMobile ? [
     ['AIM',    'Tap where spiders appear'],
     ['SHOOT',  'Tap to fire (10 per clip)'],
+    ['MISS',   'Misses cause brief shot delay'],
     ['RELOAD', 'Tap reload button'],
-    ['HEALTH', 'Spiders drain your health'],
+    ['HEALTH', 'Close spiders drain your health'],
     ['SCORE',  'Small spiders = more points'],
     ['WIN',    'Survive all 10 waves'],
   ] : [
     ['AIM',    'Move your mouse — crosshair tracks your cursor'],
     ['SHOOT',  'Left-click to fire (10 bullets per clip)'],
+    ['MISS',   'Missed shots add a brief delay'],
     ['RELOAD', 'Right-click to reload (takes 1 second)'],
-    ['HEALTH', 'Close spiders drain your health. If it hits 0 — game over!'],
+    ['HEALTH', 'Close spiders drain your health'],
     ['SCORE',  'Smaller spiders = more points. Hit streaks = combo bonus'],
     ['WIN',    'Destroy every spider across all 10 waves'],
   ];
@@ -990,6 +1014,7 @@ function drawStartScreen() {
 function loop(now) {
   const dt = Math.min(now - (state.lastTime || now), 50);
   state.lastTime = now;
+  const healthBefore = state.health;
 
   ctx.clearRect(0, 0, viewWidth, viewHeight);
 
@@ -1040,16 +1065,21 @@ function loop(now) {
 
     if (sp.progress >= 1.0) {
       // Spider reached player — bites for a chunk of health, then gone
-      state.health = Math.max(0, state.health - 10);
+      state.health = Math.max(0, state.health - 16);
       state.damageFlash = 500;
       state.waveKilled++;
       state.spiders.splice(i, 1);
     } else if (sp.progress > 0.65) {
       // Spider very close — gnawing continuously
       const intensity = (sp.progress - 0.65) / 0.35;
-      state.health = Math.max(0, state.health - intensity * 8 * dt * 0.001);
+      state.health = Math.max(0, state.health - intensity * 12 * dt * 0.001);
       state.damageFlash = Math.max(state.damageFlash, intensity * 300);
     }
+  }
+
+  if (state.health < healthBefore && now - state.lastDamageSfxTime >= 170) {
+    state.lastDamageSfxTime = now;
+    sfxDamage();
   }
 
   if (state.damageFlash > 0) state.damageFlash -= dt;
