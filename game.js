@@ -77,6 +77,9 @@ function sfxReload() {
 const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const AIM_ASSIST = isMobile ? 14 : 8; // px — limited assist so random shots do not dominate
 const MISS_SHOT_COOLDOWN = 140; // ms penalty applied after a missed shot
+const MIN_SPAWN_INTERVAL = 220; // ms — lower bound for late-wave spawn pacing
+const BASE_BITE_DAMAGE = 16;
+const BASE_GNAW_DPS = 12;
 const STAR_COUNT = 150;
 let playAgainBounds = null; // { x, y, w, h } for click detection
 let reloadBtnBounds = null; // { x, y, r } for mobile reload button
@@ -152,7 +155,7 @@ function initState() {
     waveTransition: false,
     waveTransitionTimer: 0,
     reloadWarningFlash: 0,
-    shotFired: null,   // { x, y, tx, ty, alpha }
+    shotFired: null,   // { x, y, dx, dy, alpha }
     lastTime: 0,
     health: 100,
     maxHealth: 100,
@@ -164,6 +167,7 @@ function initState() {
     waveBonuses: 0,
     killScore: 0,
     deathEffects: [],
+    deathParticles: [],
     mouseX: viewWidth / 2,
     mouseY: viewHeight / 2,
     nextShotTime: 0,
@@ -465,7 +469,12 @@ function shoot(mx, my) {
   sfxShoot();
 
   // Record shot for visual
-  state.shotFired = { x: mx, y: my, alpha: 1 };
+  const cx = viewWidth / 2;
+  const cy = viewHeight / 2;
+  const vx = mx - cx;
+  const vy = my - cy;
+  const len = Math.hypot(vx, vy) || 1;
+  state.shotFired = { x: mx, y: my, dx: vx / len, dy: vy / len, alpha: 1 };
 
   // Hit detection
   let hit = false;
@@ -479,6 +488,19 @@ function shoot(mx, my) {
       state.killScore += base;
       state.comboBonus += pts - base;
       state.deathEffects.push({ x: pos.x, y: pos.y, r: sp.radius, t: 0 });
+      for (let p = 0; p < 8; p++) {
+        const ang = Math.random() * Math.PI * 2;
+        const speed = 0.03 + Math.random() * 0.075;
+        state.deathParticles.push({
+          x: pos.x,
+          y: pos.y,
+          vx: Math.cos(ang) * speed,
+          vy: Math.sin(ang) * speed,
+          size: Math.max(1, sp.radius * (0.05 + Math.random() * 0.06)),
+          t: 0,
+          life: 0.75 + Math.random() * 0.45,
+        });
+      }
       state.spiders.splice(i, 1);
       state.waveKilled++;
       state.totalKills++;
@@ -530,6 +552,11 @@ function startWave(waveIndex) {
 
 function updateWave(dt, now) {
   const waveData = WAVE_DATA[state.wave];
+  const waveFactor = state.wave / (WAVE_DATA.length - 1); // 0..1
+  const spawnInterval = Math.max(
+    MIN_SPAWN_INTERVAL,
+    BASE_SPAWN_INTERVAL * (1 - waveFactor * 0.45)
+  );
 
   if (state.waveTransition) {
     state.waveTransitionTimer -= dt;
@@ -538,9 +565,11 @@ function updateWave(dt, now) {
   }
 
   // Spawn spiders — initial burst then steady stream
-  if (state.waveSpawned < waveData.spiders && now - state.lastSpawnTime >= BASE_SPAWN_INTERVAL) {
-    // Spawn 2-3 at once early in the wave, then 1 at a time
-    const batch = state.waveSpawned < 4 ? 3 : 1;
+  if (state.waveSpawned < waveData.spiders && now - state.lastSpawnTime >= spawnInterval) {
+    // Bigger bursts later in the game to increase pressure.
+    const earlyBatch = state.wave >= 6 ? 4 : 3;
+    const steadyBatch = state.wave >= 8 ? 2 : 1;
+    const batch = state.waveSpawned < 4 ? earlyBatch : steadyBatch;
     for (let b = 0; b < batch && state.waveSpawned < waveData.spiders; b++) {
       const angle = Math.random() * Math.PI * 2;
       state.spiders.push(new Spider(angle, waveData.speed, waveData.weave));
@@ -692,8 +721,15 @@ function drawHUD() {
     ctx.fillText('RELOAD', arcX + Math.round(20 * s), arcY + 5);
   }
 
-  // Reload warning flash
-  if (state.reloadWarningFlash > 0) {
+  // Reload status / warning
+  if (state.reloading) {
+    ctx.font = scaledFont(24, true);
+    ctx.fillStyle = '#0f0';
+    ctx.shadowColor = '#0f0';
+    ctx.shadowBlur = 14;
+    ctx.textAlign = 'center';
+    ctx.fillText('RELOADING...', viewWidth / 2, viewHeight - Math.round(80 * s));
+  } else if (state.reloadWarningFlash > 0) {
     const alpha = Math.min(1, state.reloadWarningFlash / 400);
     ctx.font = scaledFont(28, true);
     ctx.fillStyle = `rgba(255,50,50,${alpha})`;
@@ -707,8 +743,9 @@ function drawHUD() {
   if (isMobile) {
     const btnR = Math.round(50 * s);
     const iconR = Math.round(21 * s);
+    const btnLift = Math.max(Math.round(52 * s), 30);
     const btnX = viewWidth - pad - btnR;
-    const btnY = viewHeight - pad - btnR;
+    const btnY = viewHeight - pad - btnR - btnLift;
     reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 22 }; // extra tap forgiveness on mobile
 
     // Button background
@@ -754,6 +791,15 @@ function drawHUD() {
       ctx.stroke();
       ctx.shadowBlur = 0;
     }
+
+    // Label below button
+    ctx.font = scaledFont(22, true);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#aef';
+    ctx.shadowColor = state.reloading ? '#0f0' : '#0af';
+    ctx.shadowBlur = state.reloading ? 8 : 6;
+    ctx.fillText('RELOAD', btnX, btnY + btnR + Math.max(Math.round(30 * s), 20));
+    ctx.shadowBlur = 0;
   }
 
   ctx.restore();
@@ -761,24 +807,46 @@ function drawHUD() {
 
 function drawShot() {
   if (!state.shotFired) return;
-  const { x, y, alpha } = state.shotFired;
+  const { x, y, dx, dy, alpha } = state.shotFired;
   ctx.save();
   ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(Math.atan2(dy, dx));
 
-  // Outer glow
-  const grad = ctx.createRadialGradient(x, y, 0, x, y, 70 * alpha);
-  grad.addColorStop(0, 'rgba(255,200,50,0.9)');
-  grad.addColorStop(0.3, 'rgba(255,120,20,0.5)');
-  grad.addColorStop(1, 'rgba(255,60,0,0)');
-  ctx.fillStyle = grad;
+  // Tiny forward streak to imply projectile direction.
+  const streakGrad = ctx.createLinearGradient(0, 0, 52, 0);
+  streakGrad.addColorStop(0, 'rgba(210,235,255,1)');
+  streakGrad.addColorStop(0.38, 'rgba(85,170,255,0.95)');
+  streakGrad.addColorStop(1, 'rgba(35,120,255,0)');
+  ctx.fillStyle = streakGrad;
+  ctx.fillRect(-3.5, -2.8, 55, 5.6);
+
+  // Directional cone flash (blue) instead of radial explosion.
+  const coneGrad = ctx.createLinearGradient(0, 0, 38, 0);
+  coneGrad.addColorStop(0, 'rgba(225,242,255,1)');
+  coneGrad.addColorStop(0.55, 'rgba(90,175,255,0.86)');
+  coneGrad.addColorStop(1, 'rgba(30,110,255,0)');
+  ctx.fillStyle = coneGrad;
   ctx.beginPath();
-  ctx.arc(x, y, 70 * alpha, 0, Math.PI * 2);
+  ctx.moveTo(-2, 0);
+  ctx.lineTo(33, -12);
+  ctx.lineTo(42, 0);
+  ctx.lineTo(33, 12);
+  ctx.closePath();
   ctx.fill();
 
-  // Bright core
-  ctx.fillStyle = '#fff';
+  // White-hot muzzle core + soft halo.
+  ctx.fillStyle = '#f5fbff';
   ctx.beginPath();
-  ctx.arc(x, y, 14 * alpha, 0, Math.PI * 2);
+  ctx.arc(0, 0, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
+  halo.addColorStop(0, 'rgba(200,235,255,0.5)');
+  halo.addColorStop(1, 'rgba(95,175,255,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(0, 0, 16, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
@@ -791,10 +859,17 @@ function drawScreen(title, color) {
   const statsStep = isMobile ? Math.max(28 * s, 24) : 28 * s;
   const breakdownStep = isMobile ? Math.max(24 * s, 22) : 24 * s;
   const sectionGap = isMobile ? Math.max(22 * s, 18) : 22 * s;
+  const dividerGapTop = isMobile ? Math.max(46 * s, 36) : Math.max(34 * s, 26);
+  const statsStartGap = isMobile ? Math.max(42 * s, 34) : Math.max(36 * s, 30);
+  const dividerBeforeGap = isMobile ? Math.max(18 * s, 14) : 8 * s;
+  const dividerAfterGap = isMobile ? Math.max(28 * s, 22) : sectionGap;
   const buttonGap = isMobile ? Math.max(50 * s, 42) : 50 * s;
   const buttonBoxH = isMobile ? Math.max(34 * s, 32) : 34 * s;
   const cx = viewWidth / 2;
   const cy = viewHeight / 2;
+  const titleY = cy - 130 * s;
+  const topDividerY = titleY + dividerGapTop;
+  const statsStartY = topDividerY + statsStartGap;
   const accuracy = state.shotsFired > 0
     ? Math.round((state.totalKills / state.shotsFired) * 100) : 0;
 
@@ -808,15 +883,15 @@ function drawScreen(title, color) {
   ctx.fillStyle = color;
   ctx.shadowColor = color;
   ctx.shadowBlur = 30;
-  ctx.fillText(title, cx, cy - 130 * s);
+  ctx.fillText(title, cx, titleY);
 
   // Divider
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(cx - 220 * s, cy - 100 * s);
-  ctx.lineTo(cx + 220 * s, cy - 100 * s);
+  ctx.moveTo(cx - 220 * s, topDividerY);
+  ctx.lineTo(cx + 220 * s, topDividerY);
   ctx.stroke();
 
   // Combat stats
@@ -831,7 +906,7 @@ function drawScreen(title, color) {
   ctx.textAlign = 'left';
   const colX = cx - 200 * s;
   const valX = cx + 80 * s;
-  let rowY = cy - 75 * s;
+  let rowY = statsStartY;
   for (const [label, val] of stats) {
     ctx.font = panelFont(18, true);
     ctx.fillStyle = '#aef';
@@ -847,14 +922,14 @@ function drawScreen(title, color) {
   }
 
   // Score breakdown divider
-  rowY += isMobile ? Math.max(8 * s, 8) : 8 * s;
+  rowY += dividerBeforeGap;
   ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(colX, rowY);
   ctx.lineTo(valX + 120 * s, rowY);
   ctx.stroke();
-  rowY += sectionGap;
+  rowY += dividerAfterGap;
 
   // Score breakdown
   const breakdown = [
@@ -1072,25 +1147,28 @@ function loop(now) {
 
   // Update shot alpha
   if (state.shotFired) {
-    state.shotFired.alpha -= dt * 0.012;
+    state.shotFired.alpha -= dt * 0.03;
     if (state.shotFired.alpha <= 0) state.shotFired = null;
   }
 
   // Update spiders
+  const wavePressure = 1 + state.wave * 0.045;
+  const biteDamage = Math.round(BASE_BITE_DAMAGE * wavePressure);
+  const gnawDps = BASE_GNAW_DPS * wavePressure;
   for (let i = state.spiders.length - 1; i >= 0; i--) {
     const sp = state.spiders[i];
     sp.update(dt);
 
     if (sp.progress >= 1.0) {
       // Spider reached player — bites for a chunk of health, then gone
-      state.health = Math.max(0, state.health - 16);
+      state.health = Math.max(0, state.health - biteDamage);
       state.damageFlash = 500;
       state.waveKilled++;
       state.spiders.splice(i, 1);
     } else if (sp.progress > 0.65) {
       // Spider very close — gnawing continuously
       const intensity = (sp.progress - 0.65) / 0.35;
-      state.health = Math.max(0, state.health - intensity * 12 * dt * 0.001);
+      state.health = Math.max(0, state.health - intensity * gnawDps * dt * 0.001);
       state.damageFlash = Math.max(state.damageFlash, intensity * 300);
     }
   }
@@ -1133,7 +1211,7 @@ function loop(now) {
   // Death effects — burn up
   for (let i = state.deathEffects.length - 1; i >= 0; i--) {
     const fx = state.deathEffects[i];
-    fx.t += dt * 0.004;
+    fx.t += dt * 0.0028;
     if (fx.t >= 1) {
       state.deathEffects.splice(i, 1);
       continue;
@@ -1152,6 +1230,34 @@ function loop(now) {
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Death particles — lingering embers
+  for (let i = state.deathParticles.length - 1; i >= 0; i--) {
+    const p = state.deathParticles[i];
+    p.t += dt * 0.001;
+    if (p.t >= p.life) {
+      state.deathParticles.splice(i, 1);
+      continue;
+    }
+    const lifeFrac = 1 - p.t / p.life;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= 0.988;
+    p.vy = p.vy * 0.988 + 0.00003 * dt;
+
+    ctx.save();
+    ctx.globalAlpha = lifeFrac;
+    const pr = Math.max(0.4, p.size * lifeFrac);
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, pr);
+    grad.addColorStop(0, 'rgba(255,245,220,0.95)');
+    grad.addColorStop(0.4, 'rgba(255,150,45,0.8)');
+    grad.addColorStop(1, 'rgba(220,60,10,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, pr, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
