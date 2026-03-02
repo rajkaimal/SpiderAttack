@@ -732,6 +732,8 @@ function drawShot() {
 
 function drawScreen(title, color) {
   const s = uiScale;
+  const textBoost = isMobile ? 1.12 : 1;
+  const panelFont = (size, bold) => scaledFont(size * textBoost, bold);
   const cx = viewWidth / 2;
   const cy = viewHeight / 2;
   const accuracy = state.shotsFired > 0
@@ -772,13 +774,13 @@ function drawScreen(title, color) {
   const valX = cx + 80 * s;
   let rowY = cy - 75 * s;
   for (const [label, val] of stats) {
-    ctx.font = scaledFont(18, true);
+    ctx.font = panelFont(18, true);
     ctx.fillStyle = '#aef';
     ctx.shadowColor = '#0af';
     ctx.shadowBlur = 8;
     ctx.fillText(label, colX, rowY);
 
-    ctx.font = scaledFont(18, false);
+    ctx.font = panelFont(18, false);
     ctx.fillStyle = '#fff';
     ctx.shadowBlur = 0;
     ctx.fillText(val, valX, rowY);
@@ -803,7 +805,7 @@ function drawScreen(title, color) {
   ];
 
   for (const [label, val] of breakdown) {
-    ctx.font = scaledFont(16, false);
+    ctx.font = panelFont(16, false);
     ctx.fillStyle = '#aaa';
     ctx.shadowBlur = 0;
     ctx.fillText(label, colX, rowY);
@@ -813,7 +815,7 @@ function drawScreen(title, color) {
 
   // Total
   rowY += 4 * s;
-  ctx.font = scaledFont(22, true);
+  ctx.font = panelFont(22, true);
   ctx.fillStyle = '#ff0';
   ctx.shadowColor = '#f80';
   ctx.shadowBlur = 8;
@@ -824,7 +826,7 @@ function drawScreen(title, color) {
   ctx.textAlign = 'center';
   ctx.shadowBlur = 0;
   rowY += 50 * s;
-  ctx.font = scaledFont(22, true);
+  ctx.font = panelFont(22, true);
   ctx.fillStyle = '#0f0';
   ctx.shadowColor = '#0f0';
   ctx.shadowBlur = 14;
@@ -856,6 +858,8 @@ function drawWaveTransition() {
 
 function drawStartScreen() {
   const s = uiScale;
+  const textBoost = isMobile ? 1.12 : 1;
+  const panelFont = (size, bold) => scaledFont(size * textBoost, bold);
   const cx = viewWidth / 2;
   const cy = viewHeight / 2;
   const narrow = viewWidth < 600;
@@ -888,7 +892,7 @@ function drawStartScreen() {
   ctx.stroke();
 
   // Instructions header
-  ctx.font = scaledFont(16, true);
+  ctx.font = panelFont(16, true);
   ctx.fillStyle = '#aef';
   ctx.fillText('HOW TO PLAY', cx, cy - 65 * s);
 
@@ -914,7 +918,7 @@ function drawStartScreen() {
     // Single-column centered layout for narrow screens
     ctx.textAlign = 'center';
     for (const [label, desc] of rows) {
-      ctx.font = scaledFont(13, true);
+      ctx.font = panelFont(13, true);
       ctx.fillStyle = '#ff0';
       ctx.shadowColor = '#f80';
       ctx.shadowBlur = 4;
@@ -928,13 +932,13 @@ function drawStartScreen() {
     const colX = cx - 260 * s;
     const valX = cx - 120 * s;
     for (const [label, desc] of rows) {
-      ctx.font = scaledFont(14, true);
+      ctx.font = panelFont(14, true);
       ctx.fillStyle = '#ff0';
       ctx.shadowColor = '#f80';
       ctx.shadowBlur = 4;
       ctx.fillText(label, colX, rowY);
 
-      ctx.font = scaledFont(14, false);
+      ctx.font = panelFont(14, false);
       ctx.fillStyle = '#ccc';
       ctx.shadowBlur = 0;
       ctx.fillText(desc, valX, rowY);
