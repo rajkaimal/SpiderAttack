@@ -170,8 +170,8 @@ function initState() {
     killScore: 0,
     deathEffects: [],
     deathParticles: [],
-    mouseX: viewWidth / 2,
-    mouseY: viewHeight / 2,
+    mouseX: -9999,
+    mouseY: -9999,
     nextShotTime: 0,
     lastDamageSfxTime: 0,
   };
@@ -600,6 +600,8 @@ function updateWave(dt, now) {
 
 // ─── Drawing Helpers ──────────────────────────────────────────────────────────
 function drawCrosshair(x, y) {
+  if (state.phase !== 'playing') return;
+  if (x < 0 || y < 0 || x > viewWidth || y > viewHeight) return;
   const size = 18;
   const gap = 5;
   ctx.save();
