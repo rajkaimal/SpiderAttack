@@ -85,7 +85,7 @@ let uiScale = 1;
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  uiScale = Math.min(canvas.width / 900, canvas.height / 600, 1.4);
+  uiScale = Math.min(canvas.width / 960, canvas.height / 640, 1.3);
 }
 function scaledFont(size, bold) {
   return `${bold ? 'bold ' : ''}${Math.round(size * uiScale)}px monospace`;
@@ -881,10 +881,10 @@ function drawStartScreen() {
   ctx.fillText('SPIDER ATTACK', cx, cy - 170 * s);
 
   // Tagline
-  ctx.font = scaledFont(20, false);
+  ctx.font = scaledFont(narrow ? 14 : 20, false);
   ctx.fillStyle = '#f99';
   ctx.shadowBlur = 8;
-  ctx.fillText('Spiders are swarming from deep space. Survive 10 waves!', cx, cy - 120 * s);
+  ctx.fillText(narrow ? 'Survive 10 waves of spiders!' : 'Spiders are swarming from deep space. Survive 10 waves!', cx, cy - 120 * s);
 
   // Divider
   ctx.shadowBlur = 0;
@@ -901,13 +901,14 @@ function drawStartScreen() {
   ctx.fillText('HOW TO PLAY', cx, cy - 65 * s);
 
   // Instruction rows
+  const narrow = canvas.width < 600;
   const rows = isMobile ? [
     ['AIM',    'Tap where spiders appear'],
-    ['SHOOT',  'Tap to fire (10 bullets per clip)'],
-    ['RELOAD', 'Tap the reload button to reload'],
-    ['HEALTH', 'Close spiders drain your health'],
-    ['SCORE',  'Smaller spiders = more points'],
-    ['WIN',    'Destroy all spiders across 10 waves'],
+    ['SHOOT',  'Tap to fire (10 per clip)'],
+    ['RELOAD', 'Tap reload button'],
+    ['HEALTH', 'Spiders drain your health'],
+    ['SCORE',  'Small spiders = more points'],
+    ['WIN',    'Survive all 10 waves'],
   ] : [
     ['AIM',    'Move your mouse — crosshair tracks your cursor'],
     ['SHOOT',  'Left-click to fire (10 bullets per clip)'],
@@ -917,22 +918,37 @@ function drawStartScreen() {
     ['WIN',    'Destroy every spider across all 10 waves'],
   ];
 
-  ctx.textAlign = 'left';
-  const colX = cx - 260 * s;
-  const valX = cx - 120 * s;
   let rowY = cy - 30 * s;
-  for (const [label, desc] of rows) {
-    ctx.font = scaledFont(14, true);
-    ctx.fillStyle = '#ff0';
-    ctx.shadowColor = '#f80';
-    ctx.shadowBlur = 4;
-    ctx.fillText(label, colX, rowY);
+  if (narrow) {
+    // Single-column centered layout for narrow screens
+    ctx.textAlign = 'center';
+    for (const [label, desc] of rows) {
+      ctx.font = scaledFont(13, true);
+      ctx.fillStyle = '#ff0';
+      ctx.shadowColor = '#f80';
+      ctx.shadowBlur = 4;
+      ctx.fillText(`${label}: ${desc}`, cx, rowY);
+      ctx.shadowBlur = 0;
+      rowY += 24 * s;
+    }
+  } else {
+    // Two-column layout for wide screens
+    ctx.textAlign = 'left';
+    const colX = cx - 260 * s;
+    const valX = cx - 120 * s;
+    for (const [label, desc] of rows) {
+      ctx.font = scaledFont(14, true);
+      ctx.fillStyle = '#ff0';
+      ctx.shadowColor = '#f80';
+      ctx.shadowBlur = 4;
+      ctx.fillText(label, colX, rowY);
 
-    ctx.font = scaledFont(14, false);
-    ctx.fillStyle = '#ccc';
-    ctx.shadowBlur = 0;
-    ctx.fillText(desc, valX, rowY);
-    rowY += 26 * s;
+      ctx.font = scaledFont(14, false);
+      ctx.fillStyle = '#ccc';
+      ctx.shadowBlur = 0;
+      ctx.fillText(desc, valX, rowY);
+      rowY += 26 * s;
+    }
   }
 
   // Start prompt
