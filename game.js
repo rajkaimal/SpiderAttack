@@ -1,3 +1,5 @@
+import { MAX_BULLETS, RELOAD_TIME, BASE_SPAWN_INTERVAL, SPIDER_MAX_RADIUS, WAVE_DATA, scoreForRadius, getComboMultiplier, hitTest } from './game-logic.js';
+
 // ─── Audio ───────────────────────────────────────────────────────────────────
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -69,29 +71,11 @@ function sfxReload() {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const MAX_BULLETS = 10;
-const RELOAD_TIME = 1000; // ms
 const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const HIT_RADIUS = isMobile ? 55 : 40; // px — larger on mobile for finger taps
 const STAR_COUNT = 150;
-const SPIDER_MIN_RADIUS = 8;
-const SPIDER_MAX_RADIUS = 110;
-const BASE_SPAWN_INTERVAL = 500; // ms
 let playAgainBounds = null; // { x, y, w, h } for click detection
 let reloadBtnBounds = null; // { x, y, r } for mobile reload button
-
-const WAVE_DATA = [
-  { spiders: 10, speed: 0.075 },
-  { spiders: 15, speed: 0.085 },
-  { spiders: 20, speed: 0.095 },
-  { spiders: 25, speed: 0.105 },
-  { spiders: 30, speed: 0.115, weave: true },
-  { spiders: 35, speed: 0.125, weave: true },
-  { spiders: 40, speed: 0.135, weave: true },
-  { spiders: 45, speed: 0.148, weave: true },
-  { spiders: 50, speed: 0.162, weave: true },
-  { spiders: 60, speed: 0.178, weave: true },
-];
 
 // ─── Canvas Setup ─────────────────────────────────────────────────────────────
 const canvas = document.getElementById('gameCanvas');
@@ -328,20 +312,11 @@ class Spider {
 }
 
 // ─── Scoring ──────────────────────────────────────────────────────────────────
-function scoreForRadius(r) {
-  if (r < 25) return 150;
-  if (r < 50) return 80;
-  if (r < 80) return 40;
-  return 15;
-}
-
 function updateCombo(hit) {
   if (hit) {
     state.combo++;
     if (state.combo > state.bestCombo) state.bestCombo = state.combo;
-    if (state.combo >= 5) state.comboMultiplier = 2;
-    else if (state.combo >= 3) state.comboMultiplier = 1.5;
-    else state.comboMultiplier = 1;
+    state.comboMultiplier = getComboMultiplier(state.combo);
   } else {
     state.combo = 0;
     state.comboMultiplier = 1;
@@ -450,16 +425,12 @@ function shoot(mx, my) {
   for (let i = state.spiders.length - 1; i >= 0; i--) {
     const sp = state.spiders[i];
     const pos = sp.screenPos;
-    const dx = pos.x - mx;
-    const dy = pos.y - my;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist <= Math.max(HIT_RADIUS, sp.radius)) {
+    if (hitTest(mx, my, pos.x, pos.y, HIT_RADIUS, sp.radius)) {
       const base = scoreForRadius(sp.radius);
       const pts = Math.round(base * state.comboMultiplier);
       state.score += pts;
       state.killScore += base;
       state.comboBonus += pts - base;
-      const pos = sp.screenPos;
       state.deathEffects.push({ x: pos.x, y: pos.y, r: sp.radius, t: 0 });
       state.spiders.splice(i, 1);
       state.waveKilled++;

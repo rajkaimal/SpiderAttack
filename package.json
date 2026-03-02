@@ -1,0 +1,24 @@
+{
+  "name": "spiderattack",
+  "version": "1.0.0",
+  "description": "Spider Attack is a fast-paced, wave-based browser shooter where spiders pour in from deep space and close in on your position at the center of the screen. Survive all 10 waves, manage your ammo, and keep your HP above zero to win.",
+  "main": "game.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rajkaimal/SpiderAttack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rajkaimal/SpiderAttack/issues"
+  },
+  "homepage": "https://github.com/rajkaimal/SpiderAttack#readme",
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
