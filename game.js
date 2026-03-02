@@ -18,39 +18,20 @@ function sfxShoot() {
 }
 
 function sfxKill() {
-  const t = audioCtx.currentTime + 0.08; // 80ms delay so shot and splat don't overlap
+  const t = audioCtx.currentTime + 0.06; // slight delay so shot and kill don't overlap
 
-  // Low thud — short sine pop for impact
-  const thud = audioCtx.createOscillator();
-  const thudGain = audioCtx.createGain();
-  thud.type = 'sine';
-  thud.frequency.setValueAtTime(90, t);
-  thud.frequency.exponentialRampToValueAtTime(30, t + 0.14);
-  thudGain.gain.setValueAtTime(0.4, t);
-  thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-  thud.connect(thudGain).connect(audioCtx.destination);
-  thud.start(t);
-  thud.stop(t + 0.14);
-
-  // Wet noise burst — longer filtered noise for splat
-  const bufLen = audioCtx.sampleRate * 0.2;
-  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufLen; i++) {
-    const env = Math.pow(1 - i / bufLen, 2);
-    data[i] = (Math.random() * 2 - 1) * env;
-  }
-  const noise = audioCtx.createBufferSource();
-  const nGain = audioCtx.createGain();
-  const filter = audioCtx.createBiquadFilter();
-  noise.buffer = buf;
-  filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(1500, t);
-  filter.frequency.exponentialRampToValueAtTime(300, t + 0.18);
-  nGain.gain.setValueAtTime(0.35, t);
-  nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-  noise.connect(filter).connect(nGain).connect(audioCtx.destination);
-  noise.start(t);
+  // Quick descending two-note chirp (high → mid)
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(880, t);
+  osc.frequency.setValueAtTime(587, t + 0.06); // drop to second note
+  gain.gain.setValueAtTime(0.2, t);
+  gain.gain.setValueAtTime(0.18, t + 0.06);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
 }
 
 function sfxReload() {
@@ -82,10 +63,20 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 let uiScale = 1;
+let viewWidth = 0;
+let viewHeight = 0;
 function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  uiScale = Math.min(canvas.width / 960, canvas.height / 640, 1.3);
+  viewWidth = window.innerWidth;
+  viewHeight = window.innerHeight;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = `${viewWidth}px`;
+  canvas.style.height = `${viewHeight}px`;
+  canvas.width = Math.round(viewWidth * dpr);
+  canvas.height = Math.round(viewHeight * dpr);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  uiScale = Math.min(viewWidth / 960, viewHeight / 640, 1.3);
 }
 function scaledFont(size, bold) {
   return `${bold ? 'bold ' : ''}${Math.round(size * uiScale)}px monospace`;
@@ -109,8 +100,6 @@ function initState() {
     comboMultiplier: 1,
     spiders: [],
     stars: initStars(),
-    mouseX: canvas.width / 2,
-    mouseY: canvas.height / 2,
     waveSpawned: 0,
     waveKilled: 0,
     lastSpawnTime: 0,
@@ -129,6 +118,8 @@ function initState() {
     waveBonuses: 0,
     killScore: 0,
     deathEffects: [],
+    mouseX: viewWidth / 2,
+    mouseY: viewHeight / 2,
   };
 }
 
@@ -142,10 +133,10 @@ function initStars() {
 }
 
 function randomStar() {
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  const cx = viewWidth / 2;
+  const cy = viewHeight / 2;
   const angle = Math.random() * Math.PI * 2;
-  const dist = Math.random() * Math.max(canvas.width, canvas.height) * 0.6;
+  const dist = Math.random() * Math.max(viewWidth, viewHeight) * 0.6;
   return {
     x: cx + Math.cos(angle) * dist,
     y: cy + Math.sin(angle) * dist,
@@ -155,8 +146,8 @@ function randomStar() {
 }
 
 function updateStars(dt) {
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  const cx = viewWidth / 2;
+  const cy = viewHeight / 2;
   const speed = state.phase === 'playing' ? 0.4 : 0.1;
 
   for (const s of state.stars) {
@@ -208,10 +199,10 @@ class Spider {
   }
 
   get screenPos() {
-    const cx = canvas.width / 2 + this.originOffsetX;
-    const cy = canvas.height / 2 + this.originOffsetY;
+    const cx = viewWidth / 2 + this.originOffsetX;
+    const cy = viewHeight / 2 + this.originOffsetY;
     const expansion = this.progress;
-    const maxDist = Math.min(canvas.width, canvas.height) * 0.44;
+    const maxDist = Math.min(viewWidth, viewHeight) * 0.44;
     const dist = expansion * maxDist;
     let angle = this.angle;
     if (this.weave) {
@@ -587,21 +578,21 @@ function drawHUD() {
   ctx.fillStyle = '#aef';
   ctx.shadowColor = '#0af';
   ctx.shadowBlur = 8;
-  ctx.fillText(scoreText, canvas.width - pad, pad + 22 * s);
+  ctx.fillText(scoreText, viewWidth - pad, pad + 22 * s);
 
   // Combo
   if (state.comboMultiplier > 1) {
     ctx.font = scaledFont(18, true);
     ctx.fillStyle = '#ff0';
     ctx.shadowColor = '#f80';
-    ctx.fillText(`×${state.comboMultiplier} COMBO!`, canvas.width - pad, pad + 48 * s);
+    ctx.fillText(`×${state.comboMultiplier} COMBO!`, viewWidth - pad, pad + 48 * s);
   }
 
   // Bullets
   ctx.textAlign = 'left';
   const pipR = Math.round(8 * s);
   const pipGap = Math.round(5 * s);
-  const bulletY = canvas.height - pad - pipR - 2;
+  const bulletY = viewHeight - pad - pipR - 2;
 
   ctx.font = scaledFont(22, true);
   ctx.fillStyle = '#aef';
@@ -655,15 +646,15 @@ function drawHUD() {
     ctx.shadowColor = '#f00';
     ctx.shadowBlur = 16;
     ctx.textAlign = 'center';
-    ctx.fillText('RELOAD!', canvas.width / 2, canvas.height - Math.round(80 * s));
+    ctx.fillText('RELOAD!', viewWidth / 2, viewHeight - Math.round(80 * s));
   }
 
   // Mobile reload button
   if (isMobile) {
     const btnR = Math.round(36 * s);
     const iconR = Math.round(16 * s);
-    const btnX = canvas.width - pad - btnR;
-    const btnY = canvas.height - pad - btnR;
+    const btnX = viewWidth - pad - btnR;
+    const btnY = viewHeight - pad - btnR;
     reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 10 }; // +10 for easier tap
 
     // Button background
@@ -741,14 +732,14 @@ function drawShot() {
 
 function drawScreen(title, color) {
   const s = uiScale;
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  const cx = viewWidth / 2;
+  const cy = viewHeight / 2;
   const accuracy = state.shotsFired > 0
     ? Math.round((state.totalKills / state.shotsFired) * 100) : 0;
 
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, viewWidth, viewHeight);
   ctx.textAlign = 'center';
 
   // Title
@@ -855,22 +846,23 @@ function drawWaveTransition() {
   ctx.fillStyle = '#0af';
   ctx.shadowColor = '#0af';
   ctx.shadowBlur = 24;
-  ctx.fillText(`WAVE ${state.wave + 1}`, canvas.width / 2, canvas.height / 2);
+  ctx.fillText(`WAVE ${state.wave + 1}`, viewWidth / 2, viewHeight / 2);
   ctx.font = scaledFont(22, false);
   ctx.fillStyle = '#aef';
   ctx.shadowBlur = 8;
-  ctx.fillText('Get ready!', canvas.width / 2, canvas.height / 2 + 50 * uiScale);
+  ctx.fillText('Get ready!', viewWidth / 2, viewHeight / 2 + 50 * uiScale);
   ctx.restore();
 }
 
 function drawStartScreen() {
   const s = uiScale;
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  const cx = viewWidth / 2;
+  const cy = viewHeight / 2;
+  const narrow = viewWidth < 600;
 
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, viewWidth, viewHeight);
   ctx.textAlign = 'center';
 
   // Title
@@ -901,7 +893,6 @@ function drawStartScreen() {
   ctx.fillText('HOW TO PLAY', cx, cy - 65 * s);
 
   // Instruction rows
-  const narrow = canvas.width < 600;
   const rows = isMobile ? [
     ['AIM',    'Tap where spiders appear'],
     ['SHOOT',  'Tap to fire (10 per clip)'],
@@ -967,11 +958,11 @@ function loop(now) {
   const dt = Math.min(now - (state.lastTime || now), 50);
   state.lastTime = now;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, viewWidth, viewHeight);
 
   // Background
   ctx.fillStyle = '#000005';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, viewWidth, viewHeight);
 
   updateStars(dt);
   drawStars();
@@ -1035,7 +1026,7 @@ function loop(now) {
     ctx.save();
     ctx.globalAlpha = Math.min(0.4, (state.damageFlash / 500) * 0.4);
     ctx.fillStyle = '#ff0000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, viewWidth, viewHeight);
     ctx.restore();
   }
 
