@@ -1052,7 +1052,6 @@ function drawStartScreen() {
   const rows = isMobile ? [
     ['AIM',    'Tap near spiders to hit them'],
     ['SHOOT',  'Tap to fire (10 bullets per clip)'],
-    ['RATE',   'Mobile firing has a short delay between shots'],
     ['MISS',   'Misses add extra shot delay'],
     ['RELOAD', 'Tap the reload button'],
     ['HEALTH', 'Close spiders drain your health'],
