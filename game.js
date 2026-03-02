@@ -78,8 +78,9 @@ function resize() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   uiScale = Math.min(viewWidth / 960, viewHeight / 640, 1.3);
 }
-function scaledFont(size, bold) {
-  return `${bold ? 'bold ' : ''}${Math.round(size * uiScale)}px monospace`;
+function scaledFont(size, bold, minPx = 0) {
+  const px = Math.max(minPx, Math.round(size * uiScale));
+  return `${bold ? 'bold ' : ''}${px}px monospace`;
 }
 resize();
 window.addEventListener('resize', resize);
@@ -651,11 +652,11 @@ function drawHUD() {
 
   // Mobile reload button
   if (isMobile) {
-    const btnR = Math.round(36 * s);
-    const iconR = Math.round(16 * s);
+    const btnR = Math.round(42 * s);
+    const iconR = Math.round(18 * s);
     const btnX = viewWidth - pad - btnR;
     const btnY = viewHeight - pad - btnR;
-    reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 10 }; // +10 for easier tap
+    reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 14 }; // extra tap forgiveness on mobile
 
     // Button background
     ctx.beginPath();
@@ -732,8 +733,13 @@ function drawShot() {
 
 function drawScreen(title, color) {
   const s = uiScale;
-  const textBoost = isMobile ? 1.12 : 1;
-  const panelFont = (size, bold) => scaledFont(size * textBoost, bold);
+  const textBoost = isMobile ? 1.35 : 1;
+  const panelFont = (size, bold) => scaledFont(size * textBoost, bold, isMobile ? Math.round(size * 0.95) : 0);
+  const statsStep = isMobile ? Math.max(28 * s, 24) : 28 * s;
+  const breakdownStep = isMobile ? Math.max(24 * s, 22) : 24 * s;
+  const sectionGap = isMobile ? Math.max(22 * s, 18) : 22 * s;
+  const buttonGap = isMobile ? Math.max(50 * s, 42) : 50 * s;
+  const buttonBoxH = isMobile ? Math.max(34 * s, 32) : 34 * s;
   const cx = viewWidth / 2;
   const cy = viewHeight / 2;
   const accuracy = state.shotsFired > 0
@@ -784,18 +790,18 @@ function drawScreen(title, color) {
     ctx.fillStyle = '#fff';
     ctx.shadowBlur = 0;
     ctx.fillText(val, valX, rowY);
-    rowY += 28 * s;
+    rowY += statsStep;
   }
 
   // Score breakdown divider
-  rowY += 8 * s;
+  rowY += isMobile ? Math.max(8 * s, 8) : 8 * s;
   ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(colX, rowY);
   ctx.lineTo(valX + 120 * s, rowY);
   ctx.stroke();
-  rowY += 22 * s;
+  rowY += sectionGap;
 
   // Score breakdown
   const breakdown = [
@@ -810,7 +816,7 @@ function drawScreen(title, color) {
     ctx.shadowBlur = 0;
     ctx.fillText(label, colX, rowY);
     ctx.fillText(val, valX, rowY);
-    rowY += 24 * s;
+    rowY += breakdownStep;
   }
 
   // Total
@@ -825,14 +831,14 @@ function drawScreen(title, color) {
   // Play again
   ctx.textAlign = 'center';
   ctx.shadowBlur = 0;
-  rowY += 50 * s;
+  rowY += buttonGap;
   ctx.font = panelFont(22, true);
   ctx.fillStyle = '#0f0';
   ctx.shadowColor = '#0f0';
   ctx.shadowBlur = 14;
   const btnText = '[ PLAY AGAIN ]';
   const btnW = ctx.measureText(btnText).width;
-  playAgainBounds = { x: cx - btnW / 2 - 10, y: rowY - 22 * s, w: btnW + 20, h: 34 * s };
+  playAgainBounds = { x: cx - btnW / 2 - 10, y: rowY - buttonBoxH * 0.65, w: btnW + 20, h: buttonBoxH };
   ctx.fillText(btnText, cx, rowY);
 
   ctx.restore();
@@ -858,8 +864,11 @@ function drawWaveTransition() {
 
 function drawStartScreen() {
   const s = uiScale;
-  const textBoost = isMobile ? 1.12 : 1;
-  const panelFont = (size, bold) => scaledFont(size * textBoost, bold);
+  const textBoost = isMobile ? 1.4 : 1;
+  const panelFont = (size, bold) => scaledFont(size * textBoost, bold, isMobile ? Math.round(size * 1.05) : 0);
+  const rowStepSingle = isMobile ? Math.max(24 * s, 24) : 24 * s;
+  const rowStepDouble = isMobile ? Math.max(26 * s, 24) : 26 * s;
+  const promptY = isMobile ? Math.max(145 * s, 165) : 145 * s;
   const cx = viewWidth / 2;
   const cy = viewHeight / 2;
   const narrow = viewWidth < 600;
@@ -877,7 +886,7 @@ function drawStartScreen() {
   ctx.fillText('SPIDER ATTACK', cx, cy - 170 * s);
 
   // Tagline
-  ctx.font = scaledFont(narrow ? 14 : 20, false);
+  ctx.font = panelFont(narrow ? 14 : 20, false);
   ctx.fillStyle = '#f99';
   ctx.shadowBlur = 8;
   ctx.fillText(narrow ? 'Survive 10 waves of spiders!' : 'Spiders are swarming from deep space. Survive 10 waves!', cx, cy - 120 * s);
@@ -924,7 +933,7 @@ function drawStartScreen() {
       ctx.shadowBlur = 4;
       ctx.fillText(`${label}: ${desc}`, cx, rowY);
       ctx.shadowBlur = 0;
-      rowY += 24 * s;
+      rowY += rowStepSingle;
     }
   } else {
     // Two-column layout for wide screens
@@ -942,17 +951,17 @@ function drawStartScreen() {
       ctx.fillStyle = '#ccc';
       ctx.shadowBlur = 0;
       ctx.fillText(desc, valX, rowY);
-      rowY += 26 * s;
+      rowY += rowStepDouble;
     }
   }
 
   // Start prompt
   ctx.textAlign = 'center';
-  ctx.font = scaledFont(22, true);
+  ctx.font = panelFont(22, true);
   ctx.fillStyle = '#0f0';
   ctx.shadowColor = '#0f0';
   ctx.shadowBlur = 14;
-  ctx.fillText(isMobile ? '[ TAP TO START ]' : '[ CLICK TO START ]', cx, cy + 145 * s);
+  ctx.fillText(isMobile ? '[ TAP TO START ]' : '[ CLICK TO START ]', cx, cy + promptY);
 
   ctx.restore();
 }
