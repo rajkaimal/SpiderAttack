@@ -5,10 +5,12 @@ Spider Attack is a fast-paced, wave-based browser shooter where spiders pour in 
 ## How to Play
 
 - **Objective**: Destroy every spider across all 10 waves before your health reaches 0.
-- **Aiming**: Move your mouse (or tap on mobile); the neon crosshair tracks your cursor.
+- **Aiming**: Move your mouse (or tap on mobile) and keep shots close to spider bodies.
 - **Shoot**: **Left-click** (or **tap**) to fire. You have **10 bullets per clip**.
-- **Accuracy Rule**: Hit registration is centered on the spider body with only light aim assist. Random spray is much less effective.
+- **Accuracy Rule**: Hit registration uses spider size plus light aim assist (`spiderRadius * 0.75 + assist`), so random spray is much less effective.
 - **Miss Penalty**: Missing a shot applies a brief shot delay before the next shot can fire.
+- **Mobile Fire Rate**: Mobile has a fixed minimum delay between shots to prevent tap-spam.
+- **Spawn Grace**: Newly spawned spiders cannot be hit for a very short moment.
 - **Reload**: **Right-click** (or tap the **reload button** on mobile) to reload; it takes about **1 second**, during which a reload arc fills up.
 - **Health**:
   - Your health bar is shown in the top-left.
@@ -25,16 +27,16 @@ Spider Attack is a fast-paced, wave-based browser shooter where spiders pour in 
 ## Game Mechanics
 
 ### Waves
-The game consists of 10 waves of increasing difficulty. Each wave spawns a set number of spiders that crawl toward the center of the screen. Early waves start with 10 slow spiders; by wave 10 you're facing 60 fast, weaving spiders. A wave ends when every spider in that wave has been killed or has reached you. Between waves, a brief "Get ready!" transition gives you a moment to prepare.
+The game consists of 10 waves of increasing difficulty. Each wave spawns a set number of spiders that rush toward your position. Early waves start with 10 slower spiders; by wave 10 you're facing 60 fast, weaving spiders. As waves increase, spawn intervals shorten, spawn batches get larger, and close-range damage pressure increases. A wave ends when every spider in that wave has been killed or has reached you. Between waves, a brief "Get ready!" transition gives you a moment to prepare.
 
 ### Spiders
-Spiders spawn at the edges of the screen and move inward along a straight path toward the center. They start as tiny dots on the horizon and grow larger as they approach, matching the parallax depth of the starfield behind them. From wave 5 onward, spiders gain a sinusoidal weave to their path, making them harder to hit. Each spider is rendered as pixel art with a body, animated legs, eyes, and pupils that track toward the center.
+Spiders originate near the center horizon with randomized origin jitter and expand outward toward the player view, growing as they approach to match the starfield depth effect. From wave 5 onward, spiders gain sinusoidal weave movement, making them harder to track and hit. Each spider is rendered as pixel art with a body, animated legs, eyes, and pupils.
 
 ### Damage
-Spiders deal damage in two ways. When a spider gets very close (past 65% of its path), it continuously gnaws at your health — the closer it gets, the faster the drain. If a spider reaches you completely (100% progress), it bites for a heavy 16 damage and disappears. Your max health is 100, and the screen flashes red when you take damage.
+Spiders deal damage in two ways. When a spider gets very close (past 65% of its path), it continuously gnaws at your health — the closer it gets, the faster the drain. If a spider reaches you completely (100% progress), it bites for chunk damage and disappears. Both bite and gnaw pressure scale up by wave. Your max health is 100, and the screen flashes red when you take damage.
 
 ### Ammo & Reload
-You have a 10-round clip shown as bullet pips in the bottom-left. Each shot uses one bullet. When empty, a "RELOAD!" warning flashes on screen. Reloading takes 1 second with a visual progress arc. You can reload at any time, even with bullets remaining — useful for topping off between waves.
+You have a 10-round clip shown as bullet pips in the bottom-left. Each shot uses one bullet. When empty, a "RELOAD!" warning flashes on screen. While reloading, a "RELOADING..." status appears at the same location. Reloading takes 1 second with a visual progress arc/ring. You can reload at any time, even with bullets remaining — useful for topping off between waves.
 
 ### Scoring & Combos
 Points are awarded per kill based on spider size at the moment of death — smaller spiders are harder to hit and worth more (tiny: 150, small: 80, medium: 40, large: 15). Consecutive hits without a miss build your combo counter. At 3 hits you earn a 1.5x multiplier; at 5 hits it jumps to 2x. Missing a shot resets the combo to zero and applies a short shot delay. Clearing a wave awards a bonus based on wave number. The end screen breaks down your total score into kill points, combo bonus, and wave bonus.
@@ -48,24 +50,26 @@ Points are awarded per kill based on spider size at the moment of death — smal
 
 ### Mobile
 - **Tap**: Shoot at tap location
-- **Reload button**: On-screen button in the bottom-right corner
+- **Reload button**: On-screen button on the lower-right, with large tap radius and label
 
 ## Features
 
-- **10 progressive waves** with increasing spider count and speed; later waves add weaving movement
-- **Parallax starfield** background with depth-matched spider scaling
+- **10 progressive waves** with increasing speed/count, weave movement, faster spawn cadence, bigger spawn batches, and stronger close-range pressure
+- **Parallax starfield** background using tiny speck-style stars
 - **Combo system** with score multiplier for consecutive hits
+- **Anti-spam shooting rules** (miss delay, mobile minimum shot interval, spawn grace)
 - **Sound effects** — synthesized with Web Audio API (no audio files needed):
-  - Sharp snap for shooting
+  - Laser-like shooting pulse
   - Low-volume thud for spider kills
   - Mechanical click for reload
+  - Damage warning ping when health is dropping
 - **Visual effects**:
-  - Muzzle flash at crosshair on shot
-  - Burn-up death animation (white-hot core fading to orange)
+  - Directional blue muzzle flash (streak + cone + core halo)
+  - Warm death bloom with lingering ember particles
   - Damage flash overlay when hit
   - Neon crosshair with glow
 - **End screen** with full stats breakdown: wave reached, kills, accuracy, best combo, and score table (kill points, combo bonus, wave bonus)
-- **Mobile support** with touch input, on-screen reload button, and larger hit radius
+- **Mobile support** with touch input, larger reload tap target, and readability-tuned overlays
 - **Pixel-art spider rendering** with animated legs and eye detail
 
 ## Running the Game Locally
