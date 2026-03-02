@@ -5,16 +5,18 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function sfxShoot() {
   const t = audioCtx.currentTime;
+
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'square';
-  osc.frequency.setValueAtTime(1200, t);
-  osc.frequency.exponentialRampToValueAtTime(300, t + 0.06);
-  gain.gain.setValueAtTime(0.18, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  osc.frequency.setValueAtTime(2200, t);
+  osc.frequency.exponentialRampToValueAtTime(260, t + 0.14);
+  gain.gain.setValueAtTime(0.001, t);
+  gain.gain.exponentialRampToValueAtTime(0.16, t + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
   osc.connect(gain).connect(audioCtx.destination);
   osc.start(t);
-  osc.stop(t + 0.07);
+  osc.stop(t + 0.14);
 }
 
 function sfxKill() {
@@ -210,7 +212,8 @@ function updateStars(dt) {
     const scale = s.z;
     s.sx = cx + dx * scale;
     s.sy = cy + dy * scale;
-    s.sr = Math.max(0.5, scale * 2.5);
+    // Keep stars as tiny specks even at peak depth.
+    s.sr = 0.04 + scale * 0.55;
     s.salpha = s.brightness * scale;
   }
 }
