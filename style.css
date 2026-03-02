@@ -17,4 +17,5 @@ body {
 #gameCanvas {
   display: block;
   cursor: none;
+  touch-action: none;
 }

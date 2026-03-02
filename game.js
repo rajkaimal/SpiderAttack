@@ -1,11 +1,84 @@
+// ─── Audio ───────────────────────────────────────────────────────────────────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function sfxShoot() {
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(1200, t);
+  osc.frequency.exponentialRampToValueAtTime(300, t + 0.06);
+  gain.gain.setValueAtTime(0.18, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.07);
+}
+
+function sfxKill() {
+  const t = audioCtx.currentTime + 0.08; // 80ms delay so shot and splat don't overlap
+
+  // Low thud — short sine pop for impact
+  const thud = audioCtx.createOscillator();
+  const thudGain = audioCtx.createGain();
+  thud.type = 'sine';
+  thud.frequency.setValueAtTime(90, t);
+  thud.frequency.exponentialRampToValueAtTime(30, t + 0.14);
+  thudGain.gain.setValueAtTime(0.4, t);
+  thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+  thud.connect(thudGain).connect(audioCtx.destination);
+  thud.start(t);
+  thud.stop(t + 0.14);
+
+  // Wet noise burst — longer filtered noise for splat
+  const bufLen = audioCtx.sampleRate * 0.2;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) {
+    const env = Math.pow(1 - i / bufLen, 2);
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+  const noise = audioCtx.createBufferSource();
+  const nGain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  noise.buffer = buf;
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(1500, t);
+  filter.frequency.exponentialRampToValueAtTime(300, t + 0.18);
+  nGain.gain.setValueAtTime(0.35, t);
+  nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  noise.connect(filter).connect(nGain).connect(audioCtx.destination);
+  noise.start(t);
+}
+
+function sfxReload() {
+  // Two-click mechanical sound
+  for (const delay of [0, 0.12]) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1200, audioCtx.currentTime + delay);
+    osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + delay + 0.04);
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + 0.06);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime + delay);
+    osc.stop(audioCtx.currentTime + delay + 0.06);
+  }
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MAX_BULLETS = 10;
 const RELOAD_TIME = 1000; // ms
-const HIT_RADIUS = 40;    // px — click detection radius
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const HIT_RADIUS = isMobile ? 55 : 40; // px — larger on mobile for finger taps
 const STAR_COUNT = 150;
 const SPIDER_MIN_RADIUS = 8;
 const SPIDER_MAX_RADIUS = 110;
-const BASE_SPAWN_INTERVAL = 500; // ms — baseline, adaptive system adjusts this
+const BASE_SPAWN_INTERVAL = 500; // ms
+let playAgainBounds = null; // { x, y, w, h } for click detection
+let reloadBtnBounds = null; // { x, y, r } for mobile reload button
 
 const WAVE_DATA = [
   { spiders: 10, speed: 0.075 },
@@ -60,6 +133,13 @@ function initState() {
     health: 100,
     maxHealth: 100,
     damageFlash: 0,
+    totalKills: 0,
+    shotsFired: 0,
+    bestCombo: 0,
+    comboBonus: 0,
+    waveBonuses: 0,
+    killScore: 0,
+    deathEffects: [],
   };
 }
 
@@ -111,7 +191,7 @@ function updateStars(dt) {
 
 function drawStars() {
   for (const s of state.stars) {
-    if (!s.sx) continue;
+    if (s.sx == null) continue;
     ctx.beginPath();
     ctx.arc(s.sx, s.sy, s.sr, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(255,255,255,${s.salpha})`;
@@ -135,14 +215,13 @@ class Spider {
   }
 
   get radius() {
-    const t = Math.pow(this.progress, 0.55);
-    return SPIDER_MIN_RADIUS + t * (SPIDER_MAX_RADIUS - SPIDER_MIN_RADIUS);
+    return Math.max(1, this.progress * SPIDER_MAX_RADIUS);
   }
 
   get screenPos() {
     const cx = canvas.width / 2 + this.originOffsetX;
     const cy = canvas.height / 2 + this.originOffsetY;
-    const expansion = Math.pow(this.progress, 1.2);
+    const expansion = this.progress;
     const maxDist = Math.min(canvas.width, canvas.height) * 0.44;
     const dist = expansion * maxDist;
     let angle = this.angle;
@@ -242,7 +321,7 @@ class Spider {
     P( 1,-5,'#ffffff'); P( 2,-5,'#ffffff');   // right sclera
     P(-2,-4,'#cc1100'); P(-1,-4,'#cc1100');   // left iris
     P( 1,-4,'#cc1100'); P( 2,-4,'#cc1100');   // right iris
-    P(-1,-5,'#110000'); P(1,-5,'#110000');    // dark pupils
+    P(-1,-4,'#110000'); P(1,-4,'#110000');    // dark pupils
 
     ctx.restore();
   }
@@ -259,6 +338,7 @@ function scoreForRadius(r) {
 function updateCombo(hit) {
   if (hit) {
     state.combo++;
+    if (state.combo > state.bestCombo) state.bestCombo = state.combo;
     if (state.combo >= 5) state.comboMultiplier = 2;
     else if (state.combo >= 3) state.comboMultiplier = 1.5;
     else state.comboMultiplier = 1;
@@ -289,14 +369,64 @@ canvas.addEventListener('mousedown', e => {
     return;
   }
   if (state.phase === 'gameover' || state.phase === 'victory') {
-    initState();
-    state.phase = 'start';
+    if (playAgainBounds &&
+        e.clientX >= playAgainBounds.x && e.clientX <= playAgainBounds.x + playAgainBounds.w &&
+        e.clientY >= playAgainBounds.y && e.clientY <= playAgainBounds.y + playAgainBounds.h) {
+      playAgainBounds = null;
+      initState();
+      state.phase = 'start';
+    }
     return;
   }
   if (state.phase === 'playing') {
     shoot(e.clientX, e.clientY);
   }
 });
+
+// Touch input for mobile
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  audioCtx.resume(); // iOS requires user gesture to start audio
+  const t = e.touches[0];
+  const tx = t.clientX;
+  const ty = t.clientY;
+  state.mouseX = tx;
+  state.mouseY = ty;
+
+  if (state.phase === 'start') {
+    startGame();
+    return;
+  }
+  if (state.phase === 'gameover' || state.phase === 'victory') {
+    if (playAgainBounds &&
+        tx >= playAgainBounds.x && tx <= playAgainBounds.x + playAgainBounds.w &&
+        ty >= playAgainBounds.y && ty <= playAgainBounds.y + playAgainBounds.h) {
+      playAgainBounds = null;
+      initState();
+      state.phase = 'start';
+    }
+    return;
+  }
+  if (state.phase === 'playing') {
+    // Check reload button first
+    if (reloadBtnBounds) {
+      const dx = tx - reloadBtnBounds.x;
+      const dy = ty - reloadBtnBounds.y;
+      if (dx * dx + dy * dy <= reloadBtnBounds.r * reloadBtnBounds.r) {
+        startReload();
+        return;
+      }
+    }
+    shoot(tx, ty);
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  state.mouseX = t.clientX;
+  state.mouseY = t.clientY;
+}, { passive: false });
 
 // ─── Shooting ─────────────────────────────────────────────────────────────────
 function shoot(mx, my) {
@@ -309,11 +439,11 @@ function shoot(mx, my) {
   }
 
   state.bullets--;
+  state.shotsFired++;
+  sfxShoot();
 
   // Record shot for visual
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-  state.shotFired = { x: cx, y: cy, tx: mx, ty: my, alpha: 1 };
+  state.shotFired = { x: mx, y: my, alpha: 1 };
 
   // Hit detection
   let hit = false;
@@ -324,11 +454,18 @@ function shoot(mx, my) {
     const dy = pos.y - my;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist <= Math.max(HIT_RADIUS, sp.radius)) {
-      const pts = Math.round(scoreForRadius(sp.radius) * state.comboMultiplier);
+      const base = scoreForRadius(sp.radius);
+      const pts = Math.round(base * state.comboMultiplier);
       state.score += pts;
+      state.killScore += base;
+      state.comboBonus += pts - base;
+      const pos = sp.screenPos;
+      state.deathEffects.push({ x: pos.x, y: pos.y, r: sp.radius, t: 0 });
       state.spiders.splice(i, 1);
       state.waveKilled++;
+      state.totalKills++;
       hit = true;
+      sfxKill();
       break; // one bullet, one spider
     }
   }
@@ -343,6 +480,7 @@ function startReload() {
   state.reloading = true;
   state.reloadStart = performance.now();
   state.reloadProgress = 0;
+  sfxReload();
 }
 
 function updateReload(now) {
@@ -357,7 +495,6 @@ function updateReload(now) {
 // ─── Wave Management ──────────────────────────────────────────────────────────
 function startGame() {
   state.phase = 'playing';
-  state.wave = 0;
   startWave(0);
 }
 
@@ -380,7 +517,7 @@ function updateWave(dt, now) {
   }
 
   // Spawn spiders — initial burst then steady stream
-  if (state.waveSpawned < waveData.spiders && now - state.lastSpawnTime >= SPAWN_INTERVAL) {
+  if (state.waveSpawned < waveData.spiders && now - state.lastSpawnTime >= BASE_SPAWN_INTERVAL) {
     // Spawn 2-3 at once early in the wave, then 1 at a time
     const batch = state.waveSpawned < 4 ? 3 : 1;
     for (let b = 0; b < batch && state.waveSpawned < waveData.spiders; b++) {
@@ -393,7 +530,8 @@ function updateWave(dt, now) {
 
   // Check wave complete
   if (state.waveKilled >= waveData.spiders && state.spiders.length === 0) {
-    state.score += 500; // wave bonus
+    state.score += 500;
+    state.waveBonuses += 500;
     const nextWave = state.wave + 1;
     if (nextWave >= WAVE_DATA.length) {
       state.phase = 'victory';
@@ -425,6 +563,7 @@ function drawCrosshair(x, y) {
   ctx.moveTo(x, y + gap);
   ctx.lineTo(x, y + size);
   // Circle
+  ctx.moveTo(x + gap + 1, y);
   ctx.arc(x, y, gap + 1, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
@@ -462,7 +601,7 @@ function drawHUD() {
   ctx.font = '11px monospace';
   ctx.fillStyle = '#aaa';
   ctx.textAlign = 'left';
-  ctx.fillText(`HP ${Math.ceil(state.health)}`, hpX + hpBarW + 8, hpY + 10);
+  ctx.fillText(`HEALTH ${Math.ceil(state.health)}`, hpX + hpBarW + 8, hpY + 10);
 
   // Score
   const scoreText = `SCORE: ${state.score.toLocaleString()}`;
@@ -483,8 +622,14 @@ function drawHUD() {
 
   // Bullets
   ctx.textAlign = 'left';
-  ctx.shadowBlur = 0;
   const bulletY = canvas.height - pad - 10;
+
+  ctx.font = 'bold 22px monospace';
+  ctx.fillStyle = '#aef';
+  ctx.shadowColor = '#0af';
+  ctx.shadowBlur = 8;
+  ctx.fillText('ROUNDS', pad, bulletY - 22);
+  ctx.shadowBlur = 0;
   const pipR = 8;
   const pipGap = 5;
 
@@ -536,47 +681,186 @@ function drawHUD() {
     ctx.fillText('RELOAD!', canvas.width / 2, canvas.height - 80);
   }
 
+  // Mobile reload button
+  if (isMobile) {
+    const btnR = 36;
+    const btnX = canvas.width - pad - btnR;
+    const btnY = canvas.height - pad - btnR;
+    reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 10 }; // +10 for easier tap
+
+    // Button background
+    ctx.beginPath();
+    ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2);
+    ctx.fillStyle = state.reloading ? 'rgba(0,255,0,0.15)' : 'rgba(255,255,255,0.08)';
+    ctx.fill();
+    ctx.strokeStyle = state.reloading ? '#0f0' : '#666';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Circular arrow icon
+    ctx.beginPath();
+    ctx.arc(btnX, btnY, 16, -Math.PI * 0.8, Math.PI * 0.5);
+    ctx.strokeStyle = state.reloading ? '#0f0' : '#aaa';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = state.reloading ? '#0f0' : 'transparent';
+    ctx.shadowBlur = state.reloading ? 8 : 0;
+    ctx.stroke();
+
+    // Arrowhead
+    const tipAngle = Math.PI * 0.5;
+    const tipX = btnX + Math.cos(tipAngle) * 16;
+    const tipY = btnY + Math.sin(tipAngle) * 16;
+    ctx.beginPath();
+    ctx.moveTo(tipX - 6, tipY - 5);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(tipX + 6, tipY - 5);
+    ctx.strokeStyle = state.reloading ? '#0f0' : '#aaa';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Reload progress ring
+    if (state.reloading) {
+      ctx.beginPath();
+      ctx.arc(btnX, btnY, btnR - 4, -Math.PI / 2, -Math.PI / 2 + state.reloadProgress * Math.PI * 2);
+      ctx.strokeStyle = '#0f0';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#0f0';
+      ctx.shadowBlur = 6;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
   ctx.restore();
 }
 
 function drawShot() {
   if (!state.shotFired) return;
-  const { x, y, tx, ty, alpha } = state.shotFired;
+  const { x, y, alpha } = state.shotFired;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.strokeStyle = '#ff0';
-  ctx.lineWidth = 2;
-  ctx.shadowColor = '#ff0';
-  ctx.shadowBlur = 12;
+
+  // Outer glow
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, 70 * alpha);
+  grad.addColorStop(0, 'rgba(255,200,50,0.9)');
+  grad.addColorStop(0.3, 'rgba(255,120,20,0.5)');
+  grad.addColorStop(1, 'rgba(255,60,0,0)');
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(tx, ty);
-  ctx.stroke();
+  ctx.arc(x, y, 70 * alpha, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Bright core
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x, y, 14 * alpha, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.restore();
 }
 
-function drawScreen(title, subtitle, color) {
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+function drawScreen(title, color) {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const accuracy = state.shotsFired > 0
+    ? Math.round((state.totalKills / state.shotsFired) * 100) : 0;
 
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textAlign = 'center';
 
+  // Title
   ctx.font = 'bold 72px monospace';
   ctx.fillStyle = color;
   ctx.shadowColor = color;
   ctx.shadowBlur = 30;
-  ctx.fillText(title, canvas.width / 2, canvas.height / 2 - 60);
+  ctx.fillText(title, cx, cy - 130);
 
-  ctx.font = '28px monospace';
-  ctx.fillStyle = '#fff';
-  ctx.shadowBlur = 10;
-  ctx.fillText(subtitle, canvas.width / 2, canvas.height / 2);
-
-  ctx.font = '20px monospace';
-  ctx.fillStyle = '#aaa';
+  // Divider
   ctx.shadowBlur = 0;
-  ctx.fillText('Click to continue', canvas.width / 2, canvas.height / 2 + 60);
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 220, cy - 100);
+  ctx.lineTo(cx + 220, cy - 100);
+  ctx.stroke();
+
+  // Combat stats
+  const stats = [
+    ['WAVE',       `${state.wave + 1} / ${WAVE_DATA.length}`],
+    ['KILLS',      state.totalKills.toString()],
+    ['SHOTS',      state.shotsFired.toString()],
+    ['ACCURACY',   `${accuracy}%`],
+    ['BEST COMBO', state.bestCombo.toString()],
+  ];
+
+  ctx.textAlign = 'left';
+  const colX = cx - 200;
+  const valX = cx + 80;
+  let rowY = cy - 75;
+  for (const [label, val] of stats) {
+    ctx.font = 'bold 18px monospace';
+    ctx.fillStyle = '#aef';
+    ctx.shadowColor = '#0af';
+    ctx.shadowBlur = 8;
+    ctx.fillText(label, colX, rowY);
+
+    ctx.font = '18px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.shadowBlur = 0;
+    ctx.fillText(val, valX, rowY);
+    rowY += 28;
+  }
+
+  // Score breakdown divider
+  rowY += 8;
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(colX, rowY);
+  ctx.lineTo(valX + 120, rowY);
+  ctx.stroke();
+  rowY += 22;
+
+  // Score breakdown
+  const breakdown = [
+    ['KILL PTS',    state.killScore.toLocaleString()],
+    ['COMBO BONUS', `+${state.comboBonus.toLocaleString()}`],
+    ['WAVE BONUS',  `+${state.waveBonuses.toLocaleString()}`],
+  ];
+
+  for (const [label, val] of breakdown) {
+    ctx.font = '16px monospace';
+    ctx.fillStyle = '#aaa';
+    ctx.shadowBlur = 0;
+    ctx.fillText(label, colX, rowY);
+    ctx.fillText(val, valX, rowY);
+    rowY += 24;
+  }
+
+  // Total
+  rowY += 4;
+  ctx.font = 'bold 22px monospace';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#f80';
+  ctx.shadowBlur = 8;
+  ctx.fillText('TOTAL', colX, rowY);
+  ctx.fillText(state.score.toLocaleString(), valX, rowY);
+
+  // Play again
+  ctx.textAlign = 'center';
+  ctx.shadowBlur = 0;
+  rowY += 50;
+  ctx.font = 'bold 22px monospace';
+  ctx.fillStyle = '#0f0';
+  ctx.shadowColor = '#0f0';
+  ctx.shadowBlur = 14;
+  const btnText = '[ PLAY AGAIN ]';
+  const btnW = ctx.measureText(btnText).width;
+  playAgainBounds = { x: cx - btnW / 2 - 10, y: rowY - 22, w: btnW + 20, h: 34 };
+  ctx.fillText(btnText, cx, rowY);
 
   ctx.restore();
 }
@@ -636,11 +920,18 @@ function drawStartScreen() {
   ctx.fillText('HOW TO PLAY', cx, cy - 65);
 
   // Instruction rows
-  const rows = [
+  const rows = isMobile ? [
+    ['AIM',    'Tap where spiders appear'],
+    ['SHOOT',  'Tap to fire (10 bullets per clip)'],
+    ['RELOAD', 'Tap the reload button to reload'],
+    ['HEALTH', 'Close spiders drain your health. If it hits 0 — game over!'],
+    ['SCORE',  'Smaller spiders = more points. Hit streaks = combo bonus'],
+    ['WIN',    'Destroy every spider across all 10 waves'],
+  ] : [
     ['AIM',    'Move your mouse — crosshair tracks your cursor'],
     ['SHOOT',  'Left-click to fire (10 bullets per clip)'],
     ['RELOAD', 'Right-click to reload (takes 1 second)'],
-    ['HEALTH', 'Close spiders gnaw your HP. If HP hits 0 — game over!'],
+    ['HEALTH', 'Close spiders drain your health. If it hits 0 — game over!'],
     ['SCORE',  'Smaller spiders = more points. Hit streaks = combo bonus'],
     ['WIN',    'Destroy every spider across all 10 waves'],
   ];
@@ -669,7 +960,7 @@ function drawStartScreen() {
   ctx.fillStyle = '#0f0';
   ctx.shadowColor = '#0f0';
   ctx.shadowBlur = 14;
-  ctx.fillText('[ CLICK TO START ]', cx, cy + 145);
+  ctx.fillText(isMobile ? '[ TAP TO START ]' : '[ CLICK TO START ]', cx, cy + 145);
 
   ctx.restore();
 }
@@ -696,14 +987,14 @@ function loop(now) {
   }
 
   if (state.phase === 'gameover') {
-    drawScreen('GAME OVER', `Score: ${state.score.toLocaleString()}  |  Wave ${state.wave + 1}`, '#f00');
+    drawScreen('GAME OVER', '#f00');
     drawCrosshair(state.mouseX, state.mouseY);
     requestAnimationFrame(loop);
     return;
   }
 
   if (state.phase === 'victory') {
-    drawScreen('VICTORY!', `Final Score: ${state.score.toLocaleString()}`, '#0f8');
+    drawScreen('VICTORY!', '#0f8');
     drawCrosshair(state.mouseX, state.mouseY);
     requestAnimationFrame(loop);
     return;
@@ -717,7 +1008,7 @@ function loop(now) {
 
   // Update shot alpha
   if (state.shotFired) {
-    state.shotFired.alpha -= dt * 0.005;
+    state.shotFired.alpha -= dt * 0.012;
     if (state.shotFired.alpha <= 0) state.shotFired = null;
   }
 
@@ -756,9 +1047,44 @@ function loop(now) {
   }
 
   // Draw spiders (smallest first so large ones render on top)
-  state.spiders.sort((a, b) => a.progress - b.progress);
+  // Insertion sort — nearly free on an already-sorted array (progress only increases)
+  for (let i = 1; i < state.spiders.length; i++) {
+    const key = state.spiders[i];
+    let j = i - 1;
+    while (j >= 0 && state.spiders[j].progress > key.progress) {
+      state.spiders[j + 1] = state.spiders[j];
+      j--;
+    }
+    state.spiders[j + 1] = key;
+  }
   for (const sp of state.spiders) {
     sp.draw(ctx);
+  }
+
+  // Death effects — burn up
+  for (let i = state.deathEffects.length - 1; i >= 0; i--) {
+    const fx = state.deathEffects[i];
+    fx.t += dt * 0.004;
+    if (fx.t >= 1) {
+      state.deathEffects.splice(i, 1);
+      continue;
+    }
+    const shrink = 1 - fx.t;
+    const alpha = shrink;
+    const r = fx.r * shrink;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(fx.x, fx.y);
+    // White-hot core fading to orange
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    grad.addColorStop(0, `rgba(255,255,255,${1 - fx.t * 0.5})`);
+    grad.addColorStop(0.5, `rgba(255,${Math.round(160 - fx.t * 120)},30,0.8)`);
+    grad.addColorStop(1, 'rgba(200,40,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   drawShot();
