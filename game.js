@@ -1116,6 +1116,7 @@ function loop(now) {
   const dt = Math.min(now - (state.lastTime || now), 50);
   state.lastTime = now;
   const healthBefore = state.health;
+  canvas.style.cursor = state.phase === 'playing' ? 'none' : 'default';
 
   ctx.clearRect(0, 0, viewWidth, viewHeight);
 
@@ -1128,21 +1129,18 @@ function loop(now) {
 
   if (state.phase === 'start') {
     drawStartScreen();
-    drawCrosshair(state.mouseX, state.mouseY);
     requestAnimationFrame(loop);
     return;
   }
 
   if (state.phase === 'gameover') {
     drawScreen('GAME OVER', '#f00');
-    drawCrosshair(state.mouseX, state.mouseY);
     requestAnimationFrame(loop);
     return;
   }
 
   if (state.phase === 'victory') {
     drawScreen('VICTORY!', '#0f8');
-    drawCrosshair(state.mouseX, state.mouseY);
     requestAnimationFrame(loop);
     return;
   }
