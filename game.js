@@ -102,16 +102,24 @@ function resize() {
 
 function sfxDamage() {
   const t = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(220, t);
-  osc.frequency.exponentialRampToValueAtTime(170, t + 0.06);
-  gain.gain.setValueAtTime(0.045, t);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-  osc.connect(gain).connect(audioCtx.destination);
-  osc.start(t);
-  osc.stop(t + 0.08);
+  const peak = isMobile ? 0.08 : 0.055;
+
+  const ping = (start, dur, f0, f1, level) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(f0, start);
+    osc.frequency.exponentialRampToValueAtTime(f1, start + dur);
+    gain.gain.setValueAtTime(level, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(start);
+    osc.stop(start + dur);
+  };
+
+  // Two short mid-frequency pings are easier to hear on phone speakers.
+  ping(t, 0.045, 920, 620, peak);
+  ping(t + 0.055, 0.04, 760, 520, peak * 0.75);
 }
 function scaledFont(size, bold, minPx = 0) {
   const px = Math.max(minPx, Math.round(size * uiScale));
@@ -227,9 +235,9 @@ class Spider {
     this.weaveOffset = Math.random() * Math.PI * 2;
     this.weaveAmp = 0.03 + Math.random() * 0.04;
     this.weaveFreq = 1.5 + Math.random();
-    // Small center jitter so waves don't stack perfectly on one origin point.
-    this.originOffsetX = (Math.random() - 0.5) * 60;
-    this.originOffsetY = (Math.random() - 0.5) * 60;
+    // Wider center jitter for more random-looking approach vectors.
+    this.originOffsetX = (Math.random() - 0.5) * 120;
+    this.originOffsetY = (Math.random() - 0.5) * 120;
   }
 
   get radius() {
@@ -910,9 +918,15 @@ function drawStartScreen() {
   const panelFont = (size, bold) => scaledFont(size * textBoost, bold, isMobile ? Math.round(size * 1.05) : 0);
   const rowStepSingle = isMobile ? Math.max(24 * s, 24) : 24 * s;
   const rowStepDouble = isMobile ? Math.max(26 * s, 24) : 26 * s;
-  const promptY = isMobile ? Math.max(145 * s, 165) : 145 * s;
+  const promptGap = isMobile ? Math.max(48 * s, 40) : Math.max(82 * s, 68);
+  const promptBottomPad = isMobile ? Math.max(70 * s, 58) : Math.max(76 * s, 64);
   const cx = viewWidth / 2;
   const cy = viewHeight / 2;
+  const titleY = cy - 170 * s;
+  const taglineY = cy - 120 * s;
+  const dividerY = taglineY + (isMobile ? Math.max(30 * s, 24) : Math.max(28 * s, 20));
+  const howToY = dividerY + (isMobile ? Math.max(26 * s, 22) : 27 * s);
+  const rowsStartY = howToY + (isMobile ? Math.max(34 * s, 30) : 35 * s);
   const narrow = viewWidth < 600;
 
   ctx.save();
@@ -925,27 +939,27 @@ function drawStartScreen() {
   ctx.fillStyle = '#f60';
   ctx.shadowColor = '#f60';
   ctx.shadowBlur = 36;
-  ctx.fillText('SPIDER ATTACK', cx, cy - 170 * s);
+  ctx.fillText('SPIDER ATTACK', cx, titleY);
 
   // Tagline
   ctx.font = panelFont(narrow ? 14 : 20, false);
   ctx.fillStyle = '#f99';
   ctx.shadowBlur = 8;
-  ctx.fillText(narrow ? 'Survive 10 waves of spiders!' : 'Spiders are swarming from deep space. Survive 10 waves!', cx, cy - 120 * s);
+  ctx.fillText(narrow ? 'Survive 10 waves of spiders!' : 'Spiders are swarming from deep space. Survive 10 waves!', cx, taglineY);
 
   // Divider
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(cx - 280 * s, cy - 92 * s);
-  ctx.lineTo(cx + 280 * s, cy - 92 * s);
+  ctx.moveTo(cx - 280 * s, dividerY);
+  ctx.lineTo(cx + 280 * s, dividerY);
   ctx.stroke();
 
   // Instructions header
   ctx.font = panelFont(16, true);
   ctx.fillStyle = '#aef';
-  ctx.fillText('HOW TO PLAY', cx, cy - 65 * s);
+  ctx.fillText('HOW TO PLAY', cx, howToY);
 
   // Instruction rows
   const rows = isMobile ? [
@@ -966,7 +980,7 @@ function drawStartScreen() {
     ['WIN',    'Destroy every spider across all 10 waves'],
   ];
 
-  let rowY = cy - 30 * s;
+  let rowY = rowsStartY;
   if (narrow) {
     // Single-column centered layout for narrow screens
     ctx.textAlign = 'center';
@@ -1005,7 +1019,8 @@ function drawStartScreen() {
   ctx.fillStyle = '#0f0';
   ctx.shadowColor = '#0f0';
   ctx.shadowBlur = 14;
-  ctx.fillText(isMobile ? '[ TAP TO START ]' : '[ CLICK TO START ]', cx, cy + promptY);
+  const promptY = Math.min(viewHeight - promptBottomPad, rowY + promptGap);
+  ctx.fillText(isMobile ? '[ TAP TO START ]' : '[ CLICK TO START ]', cx, promptY);
 
   ctx.restore();
 }
