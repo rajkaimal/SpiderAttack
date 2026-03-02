@@ -18,20 +18,56 @@ function sfxShoot() {
 }
 
 function sfxKill() {
-  const t = audioCtx.currentTime + 0.06; // slight delay so shot and kill don't overlap
+  const t = audioCtx.currentTime + 0.02;
 
-  // Quick descending two-note chirp (high → mid)
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(880, t);
-  osc.frequency.setValueAtTime(587, t + 0.06); // drop to second note
-  gain.gain.setValueAtTime(0.2, t);
-  gain.gain.setValueAtTime(0.18, t + 0.06);
-  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-  osc.connect(gain).connect(audioCtx.destination);
-  osc.start(t);
-  osc.stop(t + 0.12);
+  // Short bright click so it cuts through on mobile speakers.
+  const click = audioCtx.createOscillator();
+  const clickGain = audioCtx.createGain();
+  click.type = 'square';
+  click.frequency.setValueAtTime(2200, t);
+  click.frequency.exponentialRampToValueAtTime(900, t + 0.025);
+  clickGain.gain.setValueAtTime(0.09, t);
+  clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+  click.connect(clickGain).connect(audioCtx.destination);
+  click.start(t);
+  click.stop(t + 0.04);
+
+  // Tiny low body underneath the click.
+  const body = audioCtx.createOscillator();
+  const bodyGain = audioCtx.createGain();
+  body.type = 'triangle';
+  body.frequency.setValueAtTime(180, t);
+  body.frequency.exponentialRampToValueAtTime(95, t + 0.055);
+  bodyGain.gain.setValueAtTime(0.05, t);
+  bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  body.connect(bodyGain).connect(audioCtx.destination);
+  body.start(t);
+  body.stop(t + 0.07);
+
+  // Crunch texture in the 1-3 kHz range for audibility.
+  const bufLen = Math.floor(audioCtx.sampleRate * 0.06);
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) {
+    const p = i / bufLen;
+    const env = Math.pow(1 - p, 3);
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+
+  const crunchNoise = audioCtx.createBufferSource();
+  const hp = audioCtx.createBiquadFilter();
+  const lp = audioCtx.createBiquadFilter();
+  const crunchGain = audioCtx.createGain();
+  crunchNoise.buffer = buf;
+  hp.type = 'highpass';
+  hp.frequency.setValueAtTime(900, t);
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(3200, t);
+  crunchGain.gain.setValueAtTime(0.06, t);
+  crunchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
+  crunchNoise.connect(hp).connect(lp).connect(crunchGain).connect(audioCtx.destination);
+  crunchNoise.start(t);
+  crunchNoise.stop(t + 0.06);
 }
 
 function sfxReload() {
@@ -190,9 +226,9 @@ class Spider {
     this.weaveOffset = Math.random() * Math.PI * 2;
     this.weaveAmp = 0.03 + Math.random() * 0.04;
     this.weaveFreq = 1.5 + Math.random();
-    // Random offset from center so spiders don't all converge on one point
-    this.originOffsetX = (Math.random() - 0.5) * 160;
-    this.originOffsetY = (Math.random() - 0.5) * 160;
+    // Small center jitter so waves don't stack perfectly on one origin point.
+    this.originOffsetX = (Math.random() - 0.5) * 60;
+    this.originOffsetY = (Math.random() - 0.5) * 60;
   }
 
   get radius() {
