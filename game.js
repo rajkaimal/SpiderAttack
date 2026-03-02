@@ -756,23 +756,32 @@ function drawHUD() {
     const btnX = viewWidth - pad - btnR;
     const btnY = viewHeight - pad - btnR - btnLift;
     reloadBtnBounds = { x: btnX, y: btnY, r: btnR + 22 }; // extra tap forgiveness on mobile
+    const needsReload = state.bullets <= 0 && !state.reloading;
+    const blinkOn = needsReload ? (Math.floor(performance.now() / 180) % 2 === 0) : false;
+    const alertCol = blinkOn ? '#ff2222' : '#00ff66';
+    const ringCol = state.reloading ? '#0f0' : needsReload ? alertCol : '#666';
+    const iconCol = state.reloading ? '#0f0' : needsReload ? alertCol : '#aaa';
 
     // Button background
     ctx.beginPath();
     ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2);
-    ctx.fillStyle = state.reloading ? 'rgba(0,255,0,0.15)' : 'rgba(255,255,255,0.08)';
+    ctx.fillStyle = state.reloading
+      ? 'rgba(0,255,0,0.15)'
+      : needsReload
+        ? (blinkOn ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,120,0.13)')
+        : 'rgba(255,255,255,0.08)';
     ctx.fill();
-    ctx.strokeStyle = state.reloading ? '#0f0' : '#666';
+    ctx.strokeStyle = ringCol;
     ctx.lineWidth = 2;
     ctx.stroke();
 
     // Circular arrow icon
     ctx.beginPath();
     ctx.arc(btnX, btnY, iconR, -Math.PI * 0.8, Math.PI * 0.5);
-    ctx.strokeStyle = state.reloading ? '#0f0' : '#aaa';
+    ctx.strokeStyle = iconCol;
     ctx.lineWidth = 3;
-    ctx.shadowColor = state.reloading ? '#0f0' : 'transparent';
-    ctx.shadowBlur = state.reloading ? 8 : 0;
+    ctx.shadowColor = state.reloading || needsReload ? iconCol : 'transparent';
+    ctx.shadowBlur = state.reloading || needsReload ? 8 : 0;
     ctx.stroke();
 
     // Arrowhead
@@ -784,7 +793,7 @@ function drawHUD() {
     ctx.moveTo(tipX - arr, tipY - arr + 1);
     ctx.lineTo(tipX, tipY);
     ctx.lineTo(tipX + arr, tipY - arr + 1);
-    ctx.strokeStyle = state.reloading ? '#0f0' : '#aaa';
+    ctx.strokeStyle = iconCol;
     ctx.lineWidth = 3;
     ctx.stroke();
     ctx.shadowBlur = 0;
