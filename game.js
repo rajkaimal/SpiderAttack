@@ -77,6 +77,8 @@ function sfxReload() {
 const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 const AIM_ASSIST = isMobile ? 14 : 8; // px — limited assist so random shots do not dominate
 const MISS_SHOT_COOLDOWN = 140; // ms penalty applied after a missed shot
+const MOBILE_MIN_SHOT_INTERVAL = 140; // ms — hard cap to prevent tap-spam on mobile
+const SPAWN_GRACE_MS = 150; // ms — newly spawned spiders cannot be hit immediately
 const MIN_SPAWN_INTERVAL = 220; // ms — lower bound for late-wave spawn pacing
 const BASE_BITE_DAMAGE = 16;
 const BASE_GNAW_DPS = 12;
@@ -234,11 +236,12 @@ function drawStars() {
 
 // ─── Spider ───────────────────────────────────────────────────────────────────
 class Spider {
-  constructor(angle, speed, weave) {
+  constructor(angle, speed, weave, spawnTime) {
     this.angle = angle;
     this.speed = speed;
     this.weave = weave || false;
     this.progress = 0;
+    this.spawnTime = spawnTime ?? performance.now();
     this.weaveOffset = Math.random() * Math.PI * 2;
     this.weaveAmp = 0.03 + Math.random() * 0.04;
     this.weaveFreq = 1.5 + Math.random();
@@ -467,6 +470,9 @@ function shoot(mx, my) {
   state.bullets--;
   state.shotsFired++;
   sfxShoot();
+  if (isMobile) {
+    state.nextShotTime = Math.max(state.nextShotTime, now + MOBILE_MIN_SHOT_INTERVAL);
+  }
 
   // Record shot for visual
   const cx = viewWidth / 2;
@@ -480,6 +486,7 @@ function shoot(mx, my) {
   let hit = false;
   for (let i = state.spiders.length - 1; i >= 0; i--) {
     const sp = state.spiders[i];
+    if (now - sp.spawnTime < SPAWN_GRACE_MS) continue;
     const pos = sp.screenPos;
     if (hitTest(mx, my, pos.x, pos.y, AIM_ASSIST, sp.radius)) {
       const base = scoreForRadius(sp.radius);
@@ -572,7 +579,7 @@ function updateWave(dt, now) {
     const batch = state.waveSpawned < 4 ? earlyBatch : steadyBatch;
     for (let b = 0; b < batch && state.waveSpawned < waveData.spiders; b++) {
       const angle = Math.random() * Math.PI * 2;
-      state.spiders.push(new Spider(angle, waveData.speed, waveData.weave));
+      state.spiders.push(new Spider(angle, waveData.speed, waveData.weave, now));
       state.waveSpawned++;
     }
     state.lastSpawnTime = now;
@@ -1041,17 +1048,18 @@ function drawStartScreen() {
 
   // Instruction rows
   const rows = isMobile ? [
-    ['AIM',    'Tap where spiders appear'],
-    ['SHOOT',  'Tap to fire (10 per clip)'],
-    ['MISS',   'Misses cause brief shot delay'],
-    ['RELOAD', 'Tap reload button'],
+    ['AIM',    'Tap near spiders to hit them'],
+    ['SHOOT',  'Tap to fire (10 bullets per clip)'],
+    ['RATE',   'Mobile firing has a short delay between shots'],
+    ['MISS',   'Misses add extra shot delay'],
+    ['RELOAD', 'Tap the reload button'],
     ['HEALTH', 'Close spiders drain your health'],
-    ['SCORE',  'Small spiders = more points'],
+    ['SCORE',  'Smaller spiders = more points'],
     ['WIN',    'Survive all 10 waves'],
   ] : [
-    ['AIM',    'Move your mouse — crosshair tracks your cursor'],
+    ['AIM',    'Move your mouse to track spiders'],
     ['SHOOT',  'Left-click to fire (10 bullets per clip)'],
-    ['MISS',   'Missed shots add a brief delay'],
+    ['MISS',   'Misses add a brief shot delay'],
     ['RELOAD', 'Right-click to reload (takes 1 second)'],
     ['HEALTH', 'Close spiders drain your health'],
     ['SCORE',  'Smaller spiders = more points. Hit streaks = combo bonus'],
